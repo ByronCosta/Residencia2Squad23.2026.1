@@ -41,7 +41,7 @@ public class AuthenticationController {
         }
         return ResponseEntity.ok("Olá " + userDetails.getUsername() + ", seu acesso está funcionando!");
     }
-    @PatchMapping("/change-password")
+    @PutMapping("/change-password")
     public ResponseEntity<?> changePassword(@RequestBody ChangePasswordRequest request,Principal connectedUser) {
         service.changePassword(request, connectedUser);
         return ResponseEntity.ok().build();
