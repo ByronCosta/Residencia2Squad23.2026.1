@@ -7,6 +7,7 @@ import com.example.demo.service.AuthenticationService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -23,6 +24,7 @@ public class AuthenticationController {
     private final AuthenticationService service;
 
     @PostMapping("/register")
+    @PreAuthorize("hasAnyRole('ADMIN','LIDER')")
     public ResponseEntity<AuthenticationResponse> register(@RequestBody RegisterRequest request) {
 
         System.out.println("Role no response entity : "+request.getRole());
