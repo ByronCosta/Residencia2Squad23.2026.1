@@ -34,9 +34,9 @@ public class SecurityConfig {
                 .csrf(csrf -> csrf.disable())
                 .cors(Customizer.withDefaults()) // Ativa o CORS explicitamente na segurança
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/api/v1/auth/authenticate").permitAll()//Rota Login/Cadastro liberada
-                        .requestMatchers("/api/v1/auth/register").permitAll()//hasRole("ADMIN")//Rota Registro/Cadastro liberada
-                        .requestMatchers("/api/v1/auth/**").permitAll()
+                        .requestMatchers("/api/accenture/auth/authenticate").permitAll()//Rota Login/Cadastro liberada
+                        .requestMatchers("/api/accenture/auth/register").permitAll()//hasRole("ADMIN")//Rota Registro/Cadastro liberada
+                        .requestMatchers("/api/accenture/auth**").permitAll()
                         .anyRequest().authenticated()                   // Todo o resto exige Token
                 )
                 .sessionManagement(session -> session
