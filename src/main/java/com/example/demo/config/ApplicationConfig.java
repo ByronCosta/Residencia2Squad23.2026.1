@@ -28,11 +28,9 @@ public class ApplicationConfig {
     @Bean
     public AuthenticationProvider authenticationProvider() {
         // Usando o caminho completo para não ter erro de "argumento"
-        var authProvider =
-                new org.springframework.security.authentication.dao.DaoAuthenticationProvider(userDetailsService());
-
-        //authProvider.setUserDetailsService(userDetailsService());
-        authProvider.setPasswordEncoder(passwordEncoder());
+        DaoAuthenticationProvider authProvider = new DaoAuthenticationProvider();
+        authProvider.setUserDetailsService(userDetailsService()); // Service aqui
+        authProvider.setPasswordEncoder(passwordEncoder()); // Encoder aqui (Correto)
         return authProvider;
     }
     @Bean
