@@ -31,12 +31,6 @@ public class AuthenticationController {
         return ResponseEntity.ok(service.register(request));
     }
 
-    @GetMapping("/saml-login")
-    public void initiateSamlLogin() {
-        // Não precisa de código aqui!
-        // O Spring Security notará que esta rota exige autenticação,
-        // verá que não há sessão/token e redirecionará automaticamente para o IdP.
-    }
     @PostMapping("/authenticate")
     public ResponseEntity<AuthenticationResponse> authenticate(@RequestBody RegisterRequest request) {
         return ResponseEntity.ok(service.authenticate(request));

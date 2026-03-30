@@ -2,9 +2,6 @@ spring:
   application:
     name: demo
 
-  server: # Movido para fora de datasource
-    port: 8080
-
   datasource:
     url: jdbc:postgresql://localhost:5432/reservasacenture
     username: postgres
@@ -15,19 +12,8 @@ spring:
     hibernate:
       ddl-auto: update
     show-sql: true
-    properties:
-      hibernate:
-        format_sql: true
 
-  security: # Movido para a mesma coluna de jpa e datasource
-    saml2:
-      relyingparty:
-        registration:
-          auth0:
-            assertingparty:
-              metadata-location: "classpath:dev-3ur3hy6il3k3anuy_us_auth0_com-metadata.xml"
-
-# Configurações fora do bloco spring
+# MOVA O BLOCO ABAIXO PARA A RAIZ (FORA DO BLOCO SPRING)
 application:
   security:
     jwt:
@@ -36,5 +22,9 @@ application:
 
 logging:
   level:
-    org.springframework.security: DEBUG
-    org.springframework.web: DEBUG
+    org:
+      springframework:
+        security: DEBUG
+        web: DEBUG
+    hibernate:
+      SQL: DEBUG
