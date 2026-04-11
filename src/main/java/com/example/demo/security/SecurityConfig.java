@@ -65,8 +65,10 @@ public class SecurityConfig {
     @Bean
     public RelyingPartyRegistrationRepository relyingPartyRegistrationRepository() {
         RelyingPartyRegistration registration = RelyingPartyRegistrations
-                .fromMetadataLocation("classpath:dev-3ur3hy6il3k3anuy_us_auth0_com-metadata.xml")
-                .registrationId("auth0")
+                // 1. Aponte para o XML da Microsoft que você salvou em resources
+                .fromMetadataLocation("classpath:azure-metadata.xml")
+                // 2. Mude o ID para "azure" para bater com o que colocamos no portal
+                .registrationId("azure")
                 .build();
         return new InMemoryRelyingPartyRegistrationRepository(registration);
     }
@@ -85,13 +87,19 @@ public class SecurityConfig {
     public AuthenticationSuccessHandler saml2SuccessHandler() {
         return (request, response, authentication) -> {
             Saml2AuthenticatedPrincipal principal = (Saml2AuthenticatedPrincipal) authentication.getPrincipal();
-            String email = principal.getFirstAttribute("email"); // ou o atributo do seu IdP
 
-            // Gerar o Token (Método utilitário)
-            String token = JwtUtils.generateToken(email);
+            // Tenta pegar o e-mail da Microsoft (o nome do atributo pode variar)
+            String email = principal.getFirstAttribute("http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress");
 
-            // Redireciona para o Front-end passando o Token (exemplo via URL ou Header)
-            response.sendRedirect("http://localhost:3000/login-success?token=" + token);
+            if (email == null) {
+                email = principal.getName(); // Fallback para o NameID
+            }
+
+            // Use o seu serviço de JWT injetado
+            // String token = jwtService.generateToken(email);
+
+            // Redireciona para o seu Vue (porta 5173 conforme seu CORS)
+            response.sendRedirect("http://localhost:3000/login-success?token=" + "SEU_TOKEN_AQUI");
         };
     }
 }

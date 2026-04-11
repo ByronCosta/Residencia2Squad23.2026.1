@@ -23,9 +23,9 @@ spring:
     saml2:
       relyingparty:
         registration:
-          auth0:
+          azure:
             assertingparty:
-              metadata-location: "classpath:dev-3ur3hy6il3k3anuy_us_auth0_com-metadata.xml"
+              metadata-uri: "classpath:azure-metadata.xml"
 
 # Configurações fora do bloco spring
 application:
