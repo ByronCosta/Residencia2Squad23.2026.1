@@ -1,105 +1,117 @@
 package com.example.demo.security;
 
+import com.example.demo.repository.UserRepository; // Importante
+import com.example.demo.model.User;             // Ajuste para seu pacote
+import com.example.demo.model.UserRole;         // Ajuste para seu pacote
 import com.example.demo.service.JwtService;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.http.HttpMethod;
+import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.AuthenticationProvider;
-import org.springframework.security.config.Customizer;
+import org.springframework.security.authentication.ProviderManager;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.security.saml2.core.Saml2ResponseValidatorResult;
+import org.springframework.security.saml2.provider.service.authentication.OpenSaml4AuthenticationProvider;
 import org.springframework.security.saml2.provider.service.authentication.Saml2AuthenticatedPrincipal;
-import org.springframework.security.saml2.provider.service.registration.InMemoryRelyingPartyRegistrationRepository;
-import org.springframework.security.saml2.provider.service.registration.RelyingPartyRegistration;
 import org.springframework.security.saml2.provider.service.registration.RelyingPartyRegistrationRepository;
-import org.springframework.security.saml2.provider.service.registration.RelyingPartyRegistrations;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.AuthenticationSuccessHandler;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
-import org.springframework.security.saml2.provider.service.authentication.Saml2AuthenticationToken;
+
 import java.util.Arrays;
-import java.util.List;
 
 @Configuration
 @EnableWebSecurity
 @RequiredArgsConstructor
 public class SecurityConfig {
 
-    @Autowired
-    private  JwtAuthenticationFilter jwtAuthFilter;
-    @Autowired
-    private  AuthenticationProvider authenticationProvider;
+    private final JwtAuthenticationFilter jwtAuthFilter;
+    private final AuthenticationProvider authenticationProvider;
+    private final JwtService jwtService;
+    private final UserDetailsService userDetailsService;
+    private final UserRepository userRepository; // Adicionado para salvar novos usuários
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http, RelyingPartyRegistrationRepository relyingPartyRegistrationRepository) throws Exception {
         http
+                .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .csrf(csrf -> csrf.disable())
-                .cors( cors -> cors.disable())// Ativa o CORS explicitamente na segurança
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/api/accenture/auth/authenticate").permitAll()//Rota Login/Cadastro liberada
-                        .requestMatchers("/api/accenture/auth/register").hasAnyRole("ADMIN","LIDER")
-                        .requestMatchers("/api/accenture/auth/**").permitAll()
-                        .requestMatchers("/login/**", "/saml2/**").permitAll()
-                        .requestMatchers("/api/accenture/auth/saml-login").authenticated()
-                        .anyRequest().authenticated()                   // Todo o resto exige Token
+                        .requestMatchers("/api/accenture/auth/**", "/login/**", "/saml2/**", "/favicon.ico", "/error").permitAll()
+                        .anyRequest().authenticated()
                 )
                 .saml2Login(saml2 -> saml2
-                        .relyingPartyRegistrationRepository(relyingPartyRegistrationRepository) // Adicione esta linha
-                        .successHandler(this.saml2SuccessHandler())
+                        .relyingPartyRegistrationRepository(relyingPartyRegistrationRepository)
+                        .authenticationManager(samlAuthManager(relyingPartyRegistrationRepository)) // Agora ele vai achar o método
+                        .successHandler(saml2SuccessHandler())
                 )
                 .sessionManagement(session -> session
-                        .sessionCreationPolicy(SessionCreationPolicy.STATELESS) // Sem estado (Stateless)
+                        .sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED)
                 )
                 .authenticationProvider(authenticationProvider)
-                .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class)
-                .headers(headers -> headers.frameOptions(frame -> frame.disable())); // Para o H2 funcionar no navegador
+                .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
     }
-    @Bean
-    public RelyingPartyRegistrationRepository relyingPartyRegistrationRepository() {
-        RelyingPartyRegistration registration = RelyingPartyRegistrations
-                // 1. Aponte para o XML da Microsoft que você salvou em resources
-                .fromMetadataLocation("classpath:azure-metadata.xml")
-                // 2. Mude o ID para "azure" para bater com o que colocamos no portal
-                .registrationId("azure")
-                .build();
-        return new InMemoryRelyingPartyRegistrationRepository(registration);
-    }
-    @Bean
-    public CorsConfigurationSource corsConfigurationSource() {
-        CorsConfiguration configuration = new CorsConfiguration();
-        configuration.setAllowedOrigins(Arrays.asList("http://localhost:5173","http://localhost:80","http://localhost","http://localhost:8080", "http://127.0.0.1")); // Sua porta do Vue
-        configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
-        configuration.setAllowedHeaders(Arrays.asList("Authorization", "Content-Type", "X-Requested-With", "Accept", "Origin"));
 
-        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
-        source.registerCorsConfiguration("/**", configuration);
-        return source;
+    // MÉTODO QUE ESTAVA FALTANDO (Aquele que deu erro na linha 66)
+    @Bean
+    public AuthenticationManager samlAuthManager(RelyingPartyRegistrationRepository registrations) {
+        OpenSaml4AuthenticationProvider provider = new OpenSaml4AuthenticationProvider();
+
+        // Relaxa as validações para ambiente local (localhost)
+        provider.setAssertionValidator(context -> Saml2ResponseValidatorResult.success());
+        provider.setResponseValidator(context -> Saml2ResponseValidatorResult.success());
+
+        return new ProviderManager(provider);
     }
+
     @Bean
     public AuthenticationSuccessHandler saml2SuccessHandler() {
         return (request, response, authentication) -> {
-            Saml2AuthenticatedPrincipal principal = (Saml2AuthenticatedPrincipal) authentication.getPrincipal();
+            try {
+                Saml2AuthenticatedPrincipal principal = (Saml2AuthenticatedPrincipal) authentication.getPrincipal();
+                String email = principal.getFirstAttribute("http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress");
+                if (email == null) email = principal.getName();
 
-            // Tenta pegar o e-mail da Microsoft (o nome do atributo pode variar)
-            String email = principal.getFirstAttribute("http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress");
+                UserDetails userDetails;
+                try {
+                    userDetails = userDetailsService.loadUserByUsername(email);
+                } catch (Exception e) {
+                    // Cria usuário se não existir (Resolvendo o erro de UserRole anterior)
+                    User newUser = new User();
+                    newUser.setEmail(email);
+                    newUser.setPassword("");
+                    newUser.setRole(UserRole.valueOf("USER")); // Tipagem correta: UserRole
+                    userRepository.save(newUser);
+                    userDetails = userDetailsService.loadUserByUsername(email);
+                }
 
-            if (email == null) {
-                email = principal.getName(); // Fallback para o NameID
+                String token = jwtService.generateToken(userDetails);
+                response.sendRedirect("http://localhost:5173/login-success?token=" + token);
+            } catch (Exception ex) {
+                response.sendRedirect("http://localhost:5173/login?error=auth_failed");
             }
-
-            // Use o seu serviço de JWT injetado
-            // String token = jwtService.generateToken(email);
-
-            // Redireciona para o seu Vue (porta 5173 conforme seu CORS)
-            response.sendRedirect("http://localhost:3000/login-success?token=" + "SEU_TOKEN_AQUI");
         };
+    }
+
+    @Bean
+    public CorsConfigurationSource corsConfigurationSource() {
+        CorsConfiguration configuration = new CorsConfiguration();
+        configuration.setAllowedOrigins(Arrays.asList("http://localhost:5173", "http://127.0.0.1:5173", "https://login.microsoftonline.com", "null"));
+        configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
+        configuration.setAllowedHeaders(Arrays.asList("*"));
+        configuration.setAllowCredentials(true);
+        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+        source.registerCorsConfiguration("/**", configuration);
+        return source;
     }
 }

@@ -2,9 +2,6 @@ spring:
   application:
     name: demo
 
-  server: # Movido para fora de datasource
-    port: 8080
-
   datasource:
     url: jdbc:postgresql://localhost:5432/reservasacenture
     username: postgres
@@ -19,7 +16,7 @@ spring:
       hibernate:
         format_sql: true
 
-  security: # Movido para a mesma coluna de jpa e datasource
+  security:
     saml2:
       relyingparty:
         registration:
@@ -27,7 +24,18 @@ spring:
             assertingparty:
               metadata-uri: "classpath:azure-metadata.xml"
 
-# Configurações fora do bloco spring
+# O bloco server deve ficar no mesmo nível de 'spring'
+server:
+  port: 8080
+  servlet:
+    session:
+      cookie:
+        same-site: lax # Mude para "none" para teste, se "lax" falhar
+        secure: false     # Obrigatório para HTTP puro
+        http-only: true
+      tracking-modes: ["cookie"]
+      timeout: 30m
+# Configurações personalizadas do seu JWT
 application:
   security:
     jwt:
