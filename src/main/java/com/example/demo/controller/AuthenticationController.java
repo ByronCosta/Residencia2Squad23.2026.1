@@ -3,8 +3,11 @@ package com.example.demo.controller;
 import com.example.demo.auth.AuthenticationResponse;
 import com.example.demo.auth.RegisterRequest;
 import com.example.demo.dto.ChangePasswordRequest;
+import com.example.demo.model.EntProfissional;
+import com.example.demo.repository.ProfissionalRepository;
 import com.example.demo.service.AuthenticationService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -22,6 +25,8 @@ import java.security.Principal;
 public class AuthenticationController {
 
     private final AuthenticationService service;
+    @Autowired
+    public ProfissionalRepository profissionalRepository;
 
     @PostMapping("/register")
     @PreAuthorize("hasAnyRole('ADMIN','LIDER')")
@@ -52,6 +57,16 @@ public class AuthenticationController {
     @PutMapping("/change-password")
     public ResponseEntity<?> changePassword(@RequestBody ChangePasswordRequest request,Principal connectedUser) {
         service.changePassword(request, connectedUser);
+        return ResponseEntity.ok().build();
+    }
+    @PostMapping("/register-profissional")
+    public ResponseEntity registerProfissional(@RequestBody EntProfissional data) {
+        // Lógica para verificar se o email já existe
+        // Lógica para encriptar a senha: String encryptedPassword = new BCryptPasswordEncoder().encode(data.getPassword());
+
+        // Salva usando o repositório de profissional
+        this.profissionalRepository.save(data);
+
         return ResponseEntity.ok().build();
     }
 }

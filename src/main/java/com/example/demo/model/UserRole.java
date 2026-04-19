@@ -3,6 +3,7 @@ package com.example.demo.model;
 
 public enum UserRole {
     ADMIN("admin"),
+    PROFISSIONAL("profissional"),
     LIDER("lider"),
     USER("user");
 
