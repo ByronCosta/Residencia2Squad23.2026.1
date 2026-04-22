@@ -41,6 +41,6 @@ public class EntReserva {
     @Column(name = "horainicial")
     private Time horainicial; // LocalTime é a recomendação moderna para o Java 8+
 
-    @Column(name = "tempo") // O Hibernate mapeará Double para 'double precision' automaticamente
-    private Double tempo;
+    @Column(name = "horafinal")
+    private Time horafinal; // LocalTime é a recomendação moderna para o Java 8+
 }

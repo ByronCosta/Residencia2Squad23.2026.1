@@ -79,12 +79,4 @@ public class ReservaController {
         return ResponseEntity.ok(reservaService.buscarEntreDatas(inicio, fim));
     }
 
-    @GetMapping("/filtro-complexo")
-    public ResponseEntity<List<ReservaDTO>> buscarFiltroCompleto(
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dataInicio,
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dataFim,
-            @RequestParam String hora,
-            @RequestParam String tempo) {
-        return ResponseEntity.ok(reservaService.buscarReservaComplexa(dataInicio, dataFim, hora, tempo));
-    }
 }

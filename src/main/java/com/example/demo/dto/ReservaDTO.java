@@ -21,6 +21,6 @@ public class ReservaDTO {
     private LocalDate datainicial;
     private LocalDate datafinal;
     private Time horainicial;
-    private double tempo;/*quantidade de horas*/
+    private Time horafinal;
 
 }

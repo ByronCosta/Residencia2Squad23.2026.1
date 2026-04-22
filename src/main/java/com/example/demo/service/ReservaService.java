@@ -3,6 +3,7 @@ package com.example.demo.service;
 import com.example.demo.dto.ReservaDTO;
 import com.example.demo.model.EntReserva;
 import com.example.demo.repository.ReservaRepository;
+import com.example.demo.repository.SalaRepository; // Import necessário
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -16,22 +17,56 @@ public class ReservaService {
     @Autowired
     private ReservaRepository reservaRepository;
 
+    @Autowired
+    private SalaRepository salaRepository; // Injetado para verificar lot_max
+
     public ReservaDTO adicionarReserva(ReservaDTO reservaDTO) {
+        // 1. PRIMEIRO: Valida se há espaço (Regra de Negócio)
+        // Se estourar a lotação, o código para aqui e lança a Exception
+        validarDisponibilidade(reservaDTO);
+
+        // 2. SEGUNDO: Se passou na validação, constrói a entidade
         EntReserva entReserva = EntReserva.builder()
                 .idsala(reservaDTO.getIdsala())
                 .idusuario(reservaDTO.getIdusuario())
                 .idprofissional(reservaDTO.getIdprofissional())
                 .datainicial(reservaDTO.getDatainicial())
                 .datafinal(reservaDTO.getDatafinal())
-                .horainicial(reservaDTO.getHorainicial()) // Faltava este campo no builder
-                .tempo(reservaDTO.getTempo())
+                .horainicial(reservaDTO.getHorainicial())
+                .horafinal(reservaDTO.getHorafinal())
                 .build();
 
-        // Salva no banco e captura a entidade com o ID gerado
+        // 3. TERCEIRO: Persiste no banco
         EntReserva entidadeSalva = reservaRepository.save(entReserva);
 
-        // Retorna o DTO convertido da entidade salva (agora com ID!)
         return mapToDTO(entidadeSalva);
+    }
+    /**
+     * Método de validação de Regra de Negócio:
+     * Compara a soma das estações ocupadas com a lotação máxima da sala.
+     */
+    private void validarDisponibilidade(ReservaDTO dto) {
+        // Busca a lotação máxima da sala
+        int lotMax = salaRepository.findById(dto.getIdsala())
+                .orElseThrow(() -> new RuntimeException("Sala não encontrada"))
+                .getLot_max();
+
+        // Busca quantas estações já estão reservadas no período (COUNT da EstacaoXReserva)
+        Integer totalOcupado = reservaRepository.somarOcupacaoNoPeriodo(
+                dto.getIdsala(),
+                dto.getDatainicial(),
+                dto.getDatafinal(),
+                dto.getHorainicial(),
+                dto.getHorafinal()
+        );
+
+        int ocupacaoAtual = (totalOcupado != null) ? totalOcupado : 0;
+
+        // Verifica se adicionar mais 1 reserva excede o limite
+        if (ocupacaoAtual + 1 > lotMax) {
+            throw new RuntimeException("Capacidade máxima da sala atingida para este horário. " +
+                    "Ocupação: " + ocupacaoAtual + "/" + lotMax);
+        }
     }
 
     public ReservaDTO buscarReservaPorId(ReservaDTO reserva) {
@@ -50,14 +85,16 @@ public class ReservaService {
         EntReserva reservaexistente = reservaRepository.findById(reservaDTO.getIdreserva())
                 .orElseThrow(() -> new RuntimeException("Reserva não encontrada com o ID: " + reservaDTO.getIdreserva()));
 
-        // Atualiza os campos
+        // Opcional: Se mudar data/hora na edição, deveria validar disponibilidade novamente
+        validarDisponibilidade(reservaDTO);
+
         reservaexistente.setIdsala(reservaDTO.getIdsala());
         reservaexistente.setIdusuario(reservaDTO.getIdusuario());
         reservaexistente.setIdprofissional(reservaDTO.getIdprofissional());
         reservaexistente.setDatainicial(reservaDTO.getDatainicial());
         reservaexistente.setDatafinal(reservaDTO.getDatafinal());
         reservaexistente.setHorainicial(reservaDTO.getHorainicial());
-        reservaexistente.setTempo(reservaDTO.getTempo());
+        reservaexistente.setHorafinal(reservaDTO.getHorafinal());
 
         EntReserva salva = reservaRepository.save(reservaexistente);
         return mapToDTO(salva);
@@ -101,17 +138,6 @@ public class ReservaService {
                 .collect(Collectors.toList());
     }
 
-    public List<ReservaDTO> buscarReservaComplexa(LocalDate dataInicio, LocalDate dataFim, String hora, String tempo) {
-        java.sql.Time horaConvertida = java.sql.Time.valueOf(hora);
-        Double tempoConvertido = Double.valueOf(tempo);
-
-        return reservaRepository.findByDatainicialAndDatafinalAndHorainicialAndTempo(dataInicio, dataFim, horaConvertida, tempoConvertido)
-                .stream()
-                .map(this::mapToDTO)
-                .collect(Collectors.toList());
-    }
-
-    // Método centralizado para conversão
     private ReservaDTO mapToDTO(EntReserva reserva) {
         return ReservaDTO.builder()
                 .idreserva(reserva.getIdreserva())
@@ -121,7 +147,7 @@ public class ReservaService {
                 .datainicial(reserva.getDatainicial())
                 .datafinal(reserva.getDatafinal())
                 .horainicial(reserva.getHorainicial())
-                .tempo(reserva.getTempo())
+                .horafinal(reserva.getHorafinal())
                 .build();
     }
 }

@@ -20,6 +20,6 @@ public class Reserva {
     private Data datainicial;
     private Data datafinal;
     private Time horainicial;
-    private int tempo;/*quantidade de minutos*/
+    private Time horafinal;/*quantidade de minutos*/
 
 }
