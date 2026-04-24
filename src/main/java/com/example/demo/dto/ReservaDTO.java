@@ -7,6 +7,7 @@ import lombok.NoArgsConstructor;
 
 import java.sql.Time;
 import java.time.LocalDate;
+import java.time.LocalTime;
 
 @Data
 @NoArgsConstructor
@@ -20,7 +21,7 @@ public class ReservaDTO {
     private Long idprofissional;
     private LocalDate datainicial;
     private LocalDate datafinal;
-    private Time horainicial;
-    private Time horafinal;
+    private LocalTime horainicial;
+    private LocalTime horafinal;
 
 }

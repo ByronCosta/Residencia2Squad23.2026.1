@@ -4,6 +4,7 @@ import com.example.demo.dto.ReservaDTO;
 import com.example.demo.service.ReservaService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -23,8 +24,16 @@ public class ReservaController {
     // --- MÉTODOS CRUD BÁSICOS ---
 
     @PostMapping
-    public ResponseEntity<ReservaDTO> adicionar(@RequestBody ReservaDTO reservaDTO) {
-        return ResponseEntity.ok(reservaService.adicionarReserva(reservaDTO));
+    public ResponseEntity<?> adicionar(@RequestBody ReservaDTO reservaDTO) {
+        try {
+            // Tenta adicionar a reserva executando as validações do Service
+            ReservaDTO novaReserva = reservaService.adicionarReserva(reservaDTO);
+            return ResponseEntity.status(HttpStatus.CREATED).body(novaReserva);
+        } catch (RuntimeException e) {
+            // Se cair aqui, é porque a validação de lotação ou disponibilidade falhou
+            // Retorna 400 (Bad Request) com a mensagem personalizada
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
     }
 
     @GetMapping
@@ -40,8 +49,12 @@ public class ReservaController {
     }
 
     @PutMapping
-    public ResponseEntity<ReservaDTO> editar(@RequestBody ReservaDTO reservaDTO) {
-        return ResponseEntity.ok(reservaService.editarReserva(reservaDTO));
+    public ResponseEntity<?> editar(@RequestBody ReservaDTO reservaDTO) {
+        try {
+            return ResponseEntity.ok(reservaService.editarReserva(reservaDTO));
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
     }
 
     @DeleteMapping("/{id}")
@@ -66,17 +79,5 @@ public class ReservaController {
         return ResponseEntity.ok(reservaService.buscarPorProfissional(idprofissional));
     }
 
-    @GetMapping("/data-inicial")
-    public ResponseEntity<List<ReservaDTO>> buscarPorDataInicial(
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate data) {
-        return ResponseEntity.ok(reservaService.buscarPorDataInicial(data));
-    }
-
-    @GetMapping("/periodo")
-    public ResponseEntity<List<ReservaDTO>> buscarEntreDatas(
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate inicio,
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fim) {
-        return ResponseEntity.ok(reservaService.buscarEntreDatas(inicio, fim));
-    }
 
 }

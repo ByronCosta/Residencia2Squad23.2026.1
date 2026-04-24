@@ -39,8 +39,8 @@ public class EntReserva {
     private LocalDate datafinal;
 
     @Column(name = "horainicial")
-    private Time horainicial; // LocalTime é a recomendação moderna para o Java 8+
+    private LocalTime horainicial; // LocalTime é a recomendação moderna para o Java 8+
 
     @Column(name = "horafinal")
-    private Time horafinal; // LocalTime é a recomendação moderna para o Java 8+
+    private LocalTime horafinal; // LocalTime é a recomendação moderna para o Java 8+
 }
