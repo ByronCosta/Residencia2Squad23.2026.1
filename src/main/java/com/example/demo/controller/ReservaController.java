@@ -43,9 +43,7 @@ public class ReservaController {
 
     @GetMapping("/{id}")
     public ResponseEntity<ReservaDTO> buscarPorId(@PathVariable Long id) {
-        ReservaDTO dto = new ReservaDTO();
-        dto.setIdreserva(id);
-        return ResponseEntity.ok(reservaService.buscarReservaPorId(dto));
+        return ResponseEntity.ok(reservaService.buscarReservaPorId(id));
     }
 
     @PutMapping
@@ -79,5 +77,26 @@ public class ReservaController {
         return ResponseEntity.ok(reservaService.buscarPorProfissional(idprofissional));
     }
 
+    // Endpoint para reserva de grupo (JUNTAS)
+    @PostMapping("/grupo")
+    public ResponseEntity<List<ReservaDTO>> reservarEmGrupo(
+            @RequestBody ReservaDTO baseDTO,
+            @RequestParam int totalPessoas,
+            @RequestParam Long idEstacaoReferencia) {
+
+        List<ReservaDTO> reservas = reservaService.adicionarReservaEmGrupo(baseDTO, totalPessoas, idEstacaoReferencia);
+        return ResponseEntity.ok(reservas);
+    }
+
+    // Endpoint para reserva espaçada (SEPARADAS)
+    @PostMapping("/separadas")
+    public ResponseEntity<List<ReservaDTO>> reservarSeparadas(
+            @RequestBody ReservaDTO baseDTO,
+            @RequestParam int totalPessoas,
+            @RequestParam int salto) {
+
+        List<ReservaDTO> reservas = reservaService.adicionarReservaSeparada(baseDTO, totalPessoas, salto);
+        return ResponseEntity.ok(reservas);
+    }
 
 }

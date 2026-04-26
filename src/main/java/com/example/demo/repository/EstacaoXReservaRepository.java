@@ -13,16 +13,20 @@ import java.util.List;
 @Repository
 public interface EstacaoXReservaRepository extends JpaRepository<EntEstacaoXReserva, Long> {
 
-    // Busca todos os vínculos de uma estação específica
+    // Mantendo os métodos automáticos do Spring Data
     List<EntEstacaoXReserva> findByIdestacao(Long idestacao);
-
-    // Busca todos os vínculos de uma reserva específica
     List<EntEstacaoXReserva> findByIdreserva(Long idreserva);
 
-    @Query("SELECT COUNT(er) FROM EntEstacaoXReserva er " +
-            "JOIN EntReserva r ON er.idreserva = r.idreserva " +
+    /**
+     * Conta quantas estações distintas estão ocupadas em um período.
+     * Usei SQL Nativo para garantir que a junção entre estacaoxreserva e reserva funcione
+     * sem precisar mapear @ManyToOne nas Entities.
+     */
+    @Query(value = "SELECT COUNT(DISTINCT er.idestacao) FROM estacaoxreserva er " +
+            "JOIN reserva r ON er.idreserva = r.idreserva " +
             "WHERE (r.datainicial <= :dataFim AND r.datafinal >= :dataInicio) " +
-            "AND (r.horainicial < :horaFim AND r.horafinal > :horaInicio)")
+            "AND (r.horainicial < :horaFim AND r.horafinal > :horaInicio)",
+            nativeQuery = true)
     Long contarEstacoesOcupadasNoPeriodo(
             @Param("dataInicio") LocalDate dataInicio,
             @Param("dataFim") LocalDate dataFim,
