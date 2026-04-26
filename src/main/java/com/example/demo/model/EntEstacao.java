@@ -23,6 +23,10 @@ public class EntEstacao{
     private Long idestacao;
     @Column(name = "descricao")
     private String descricao;
+    @Column(name = "coordx")
+    private Integer coordx;
+    @Column(name = "coordy")
+    private Integer coordy;
 
 
 }

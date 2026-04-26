@@ -14,5 +14,7 @@ public class EstacaoDTO {
 
     private Long idestacao;
     private String descricao;
+    private Integer coordx;
+    private Integer cooody;
 
 }

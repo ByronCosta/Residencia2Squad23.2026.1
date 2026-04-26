@@ -20,6 +20,8 @@ public class EstacaoService {
         EntEstacao entEstacao = EntEstacao.builder()
                 .idestacao(estacaoDTO.getIdestacao())
                 .descricao(estacaoDTO.getDescricao())
+                .coordx(estacaoDTO.getCoordx())
+                .coordy(estacaoDTO.getCooody())
                 .build();
 
         // Corrigido: Removido o save duplicado e ajustado o nome da variável
@@ -66,6 +68,8 @@ public class EstacaoService {
         return EstacaoDTO.builder()
                 .idestacao(estacao.getIdestacao())
                 .descricao(estacao.getDescricao())
+                .coordx(estacao.getCoordx())
+                .cooody(estacao.getCoordy())
                 .build();
     }
 }
