@@ -19,6 +19,7 @@ public class EquipamentoService {
     public EquipamentoDTO adicionarEquipamento(EquipamentoDTO equipamentoDTO) {
         EntEquipamento entEquipamento = EntEquipamento.builder()
                 .idequipamento(equipamentoDTO.getIdequipamento())
+                .idestacao(equipamentoDTO.getIdestacao())
                 .descricao(equipamentoDTO.getDescricao())
                 .estoque(equipamentoDTO.getEstoque())
                 .build();
@@ -35,6 +36,7 @@ public class EquipamentoService {
                 .orElseThrow(() -> new RuntimeException("Equipamento não encontrado com ID: " + equipamentoDTO.getIdequipamento()));
 
         // Atualiza os campos
+        equipamentoExistente.setIdestacao(equipamentoDTO.getIdestacao());
         equipamentoExistente.setDescricao(equipamentoDTO.getDescricao());
         equipamentoExistente.setEstoque(equipamentoDTO.getEstoque());
 
@@ -77,6 +79,7 @@ public class EquipamentoService {
     private EquipamentoDTO mapToDTO(EntEquipamento equipamento) {
         return EquipamentoDTO.builder()
                 .idequipamento(equipamento.getIdequipamento())
+                .idestacao(equipamento.getIdestacao())
                 .descricao(equipamento.getDescricao())
                 .estoque(equipamento.getEstoque())
                 .build();

@@ -11,6 +11,7 @@ import lombok.NoArgsConstructor;
 @Builder
 public class EquipamentoDTO {
     private Long idequipamento;
+    private Long idestacao;
     private String descricao;
     private Boolean estoque;
 }

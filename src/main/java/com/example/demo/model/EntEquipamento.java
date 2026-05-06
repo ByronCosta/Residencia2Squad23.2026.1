@@ -21,6 +21,8 @@ public class EntEquipamento {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "idequipamento")
     private Long idequipamento;
+    @Column(name = "idestacao")
+    private Long idestacao;
     @Column(name = "descricao")
     private String descricao;
     @Column(name = "estoque", columnDefinition = "BOOLEAN")
