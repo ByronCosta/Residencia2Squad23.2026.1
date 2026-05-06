@@ -21,6 +21,8 @@ public class EntEstacao{
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "idestacao")
     private Long idestacao;
+    @Column(name = "idsala")
+    private Long idsala;
     @Column(name = "descricao")
     private String descricao;
     @Column(name = "coordx")

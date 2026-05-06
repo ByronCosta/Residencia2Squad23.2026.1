@@ -10,10 +10,9 @@ import java.util.List;
 
 @Repository
 public interface EstacaoRepository extends JpaRepository<EntEstacao, Long> {
-
-    @Query(value = "SELECT e.* FROM estacao e " +
-            "JOIN estacaoxsala exs ON e.idestacao = exs.idestacao " +
-            "WHERE exs.idsala = :idsala",
+    // Agora buscamos diretamente na tabela estacao,
+    // pois o idsala é uma coluna dela.
+    @Query(value = "SELECT * FROM estacao WHERE idsala = :idsala",
             nativeQuery = true)
     List<EntEstacao> buscarDisponiveisPorSala(@Param("idsala") Long idsala);
 }

@@ -9,6 +9,7 @@ import lombok.*;
 public class Estacao {
 
     private Long idestacao;
+    private Long idsala;
     private String descricao;
     private Integer coordx;
     private Integer coordy;

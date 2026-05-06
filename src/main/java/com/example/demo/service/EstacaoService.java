@@ -19,6 +19,7 @@ public class EstacaoService {
     public EstacaoDTO adicionarEstacao(EstacaoDTO estacaoDTO) {
         EntEstacao entEstacao = EntEstacao.builder()
                 .idestacao(estacaoDTO.getIdestacao())
+                .idsala(estacaoDTO.getIdsala())
                 .descricao(estacaoDTO.getDescricao())
                 .coordx(estacaoDTO.getCoordx())
                 .coordy(estacaoDTO.getCooody())
@@ -56,7 +57,10 @@ public class EstacaoService {
                 .orElseThrow(() -> new RuntimeException("Estação não encontrada com ID: " + estacaoDTO.getIdestacao()));
 
         // Atualiza a descrição
+        estacaoExistente.setIdsala(estacaoDTO.getIdsala());
         estacaoExistente.setDescricao(estacaoDTO.getDescricao());
+        estacaoExistente.setCoordx(estacaoDTO.getCoordx());
+        estacaoExistente.setCoordy(estacaoDTO.getCooody());
 
         // Salva a alteração
         EntEstacao estacaoAtualizada = estacaoRepository.save(estacaoExistente);
@@ -67,6 +71,7 @@ public class EstacaoService {
     private EstacaoDTO mapToDTO(EntEstacao estacao) {
         return EstacaoDTO.builder()
                 .idestacao(estacao.getIdestacao())
+                .idsala(estacao.getIdsala())
                 .descricao(estacao.getDescricao())
                 .coordx(estacao.getCoordx())
                 .cooody(estacao.getCoordy())
