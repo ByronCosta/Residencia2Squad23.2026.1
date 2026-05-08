@@ -45,7 +45,6 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         }
 
         // 2. LOG de Depuração (Apenas para rotas que precisam de JWT)
-        System.out.println("Validando JWT para a rota: " + path);
 
         final String authHeader = request.getHeader("Authorization");
 

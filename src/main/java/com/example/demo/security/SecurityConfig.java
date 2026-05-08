@@ -73,36 +73,67 @@ public class SecurityConfig {
 
         return new ProviderManager(provider);
     }
-
     @Bean
     public AuthenticationSuccessHandler saml2SuccessHandler() {
         return (request, response, authentication) -> {
             try {
                 Saml2AuthenticatedPrincipal principal = (Saml2AuthenticatedPrincipal) authentication.getPrincipal();
+
+                // 1. Extrair o Email
                 String email = principal.getFirstAttribute("http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress");
                 if (email == null) email = principal.getName();
 
+                // 2. Extrair a Role da Microsoft
+                String microsoftRole = principal.getFirstAttribute("http://schemas.microsoft.com/ws/2008/06/identity/claims/role");
+                if (microsoftRole == null) microsoftRole = "USER";
+
                 UserDetails userDetails;
                 try {
+                    // Tenta carregar o usuário existente
                     userDetails = userDetailsService.loadUserByUsername(email);
+
+                    // ATUALIZAÇÃO DA ROLE PARA USUÁRIO EXISTENTE
+                    User user = userRepository.findByEmail(email).orElseThrow();
+                    try {
+                        UserRole roleVindaDaMicrosoft = UserRole.valueOf(microsoftRole.toUpperCase());
+
+                        if (user.getRole() != roleVindaDaMicrosoft) {
+                            user.setRole(roleVindaDaMicrosoft);
+                            userRepository.save(user);
+                            // Recarrega o userDetails para o JWT sair com a role nova
+                            userDetails = userDetailsService.loadUserByUsername(email);
+                        }
+                    } catch (IllegalArgumentException ex) {
+                        // Se a role da Microsoft não existir no seu Enum, mantém a que já estava no banco
+                        System.out.println("Role vinda da Microsoft desconhecida: " + microsoftRole);
+                    }
+
                 } catch (Exception e) {
-                    // Cria usuário se não existir (Resolvendo o erro de UserRole anterior)
+                    // CRIAÇÃO DE NOVO USUÁRIO (Caso não exista)
                     User newUser = new User();
                     newUser.setEmail(email);
                     newUser.setPassword("");
-                    newUser.setRole(UserRole.valueOf("USER")); // Tipagem correta: UserRole
+
+                    try {
+                        newUser.setRole(UserRole.valueOf(microsoftRole.toUpperCase()));
+                    } catch (IllegalArgumentException ex) {
+                        newUser.setRole(UserRole.USER); // Default se o nome for inválido
+                    }
+
                     userRepository.save(newUser);
                     userDetails = userDetailsService.loadUserByUsername(email);
                 }
 
+                // 3. Gera o Token com as informações atualizadas
                 String token = jwtService.generateToken(userDetails);
                 response.sendRedirect("http://localhost:5173/login-success?token=" + token);
+
             } catch (Exception ex) {
+                ex.printStackTrace();
                 response.sendRedirect("http://localhost:5173/login?error=auth_failed");
             }
         };
     }
-
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
