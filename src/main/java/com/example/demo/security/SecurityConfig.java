@@ -43,14 +43,22 @@ public class SecurityConfig {
     public SecurityFilterChain securityFilterChain(HttpSecurity http, RelyingPartyRegistrationRepository relyingPartyRegistrationRepository) throws Exception {
         http
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
-                .csrf(csrf -> csrf.disable())
+                .csrf(csrf -> csrf.disable()) // CSRF desabilitado é essencial para POST de APIs externas
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/api/accenture/auth/**", "/login/**", "/saml2/**", "/favicon.ico", "/error").permitAll()
+                        // ADICIONADO: /salas/** para permitir que a FastAPI poste os dados da IA
+                        .requestMatchers(
+                                "/api/accenture/auth/**",
+                                "/login/**",
+                                "/saml2/**",
+                                "/favicon.ico",
+                                "/error",
+                                "/salas/**" // Libera os endpoints de salas para a integração
+                        ).permitAll()
                         .anyRequest().authenticated()
                 )
                 .saml2Login(saml2 -> saml2
                         .relyingPartyRegistrationRepository(relyingPartyRegistrationRepository)
-                        .authenticationManager(samlAuthManager(relyingPartyRegistrationRepository)) // Agora ele vai achar o método
+                        .authenticationManager(samlAuthManager(relyingPartyRegistrationRepository))
                         .successHandler(saml2SuccessHandler())
                 )
                 .sessionManagement(session -> session
@@ -60,9 +68,7 @@ public class SecurityConfig {
                 .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
-    }
-
-    // MÉTODO QUE ESTAVA FALTANDO (Aquele que deu erro na linha 66)
+    }    // MÉTODO QUE ESTAVA FALTANDO (Aquele que deu erro na linha 66)
     @Bean
     public AuthenticationManager samlAuthManager(RelyingPartyRegistrationRepository registrations) {
         OpenSaml4AuthenticationProvider provider = new OpenSaml4AuthenticationProvider();

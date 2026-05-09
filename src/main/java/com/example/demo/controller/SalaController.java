@@ -11,6 +11,7 @@ import org.springframework.web.client.RestTemplate;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/salas")
@@ -18,8 +19,8 @@ public class SalaController {
 
     @Autowired
     private SalaService salaService;
-    private final String FASTAPI_URL = "http://localhost:8000/detectar-planta";
-
+    private final String FASTAPI_URL = "http://127.0.0.1:8000/analisar";
+/*
     @PostMapping("/{id}/upload-planta")
     public ResponseEntity<?> fazerUploadPlanta(
             @PathVariable("id") Long idSala,
@@ -42,8 +43,9 @@ public class SalaController {
 
         return ResponseEntity.ok(mensagemSucesso);
     }
+    */
     //Adicionar imagem
-    /*@PostMapping("/{id}/upload-planta")
+    @PostMapping("/{id}/upload-planta")
     public ResponseEntity<?> fazerUploadPlanta(
             @PathVariable("id") Long idSala,
             @RequestParam("file") MultipartFile file) {
@@ -97,7 +99,24 @@ public class SalaController {
         }
 
 
-    }*/
+    }
+
+    @PostMapping("/importar") // Precisa ser PostMapping e o caminho exato
+    public ResponseEntity<?> importarDadosIA(@RequestBody Map<String, Object> dados) {
+        System.out.println("Dados da IA recebidos: " + dados);
+
+        // Aqui você faz a lógica para salvar no banco de dados
+
+        return ResponseEntity.ok(Map.of("sucesso", true, "mensagem", "Dados importados"));
+    }
+
+    @PostMapping("/processar-ia")
+    public ResponseEntity<?> receberDadosIA(@RequestBody Map<String, Object> dadosIA) {
+        // Aqui você recebe o que a IA detectou (itens, total_itens, etc)
+        System.out.println("Dados recebidos da IA: " + dadosIA);
+
+        return ResponseEntity.ok(Map.of("status", "recebido com sucesso"));
+    }
     // 1. Adicionar nova sala
     @PostMapping
     public ResponseEntity<SalaDTO> adicionar(@RequestBody SalaDTO salaDTO) {
