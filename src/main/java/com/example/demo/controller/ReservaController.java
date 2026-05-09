@@ -6,6 +6,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
@@ -78,6 +79,7 @@ public class ReservaController {
     }
 
     // Endpoint para reserva de grupo (JUNTAS)
+    @PreAuthorize("hasAnyRole('LIDER', 'ADMIN')")
     @PostMapping("/grupo")
     public ResponseEntity<List<ReservaDTO>> reservarEmGrupo(
             @RequestBody ReservaDTO baseDTO,
@@ -89,6 +91,7 @@ public class ReservaController {
     }
 
     // Endpoint para reserva espaçada (SEPARADAS)
+    @PreAuthorize("hasAnyRole('LIDER', 'ADMIN')")
     @PostMapping("/separadas")
     public ResponseEntity<List<ReservaDTO>> reservarSeparadas(
             @RequestBody ReservaDTO baseDTO,
