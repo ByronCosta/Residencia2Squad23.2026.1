@@ -98,9 +98,16 @@ public class ReservaService {
     }
 
     // --- MÉTODOS CRUD ORIGINAIS ---
+    @Autowired
+    private com.example.demo.repository.UserRepository userRepository; // Adicione este Autowired se não houver
 
     public ReservaDTO adicionarReserva(ReservaDTO reservaDTO) {
+        // 1. Validar disponibilidade física da sala
         validarDisponibilidade(reservaDTO);
+
+        // 2. Aplicar regra de negócio para papel 'USER' com idprofissional
+        validarRestricaoUsuarioComProfissional(reservaDTO);
+
         EntReserva entReserva = EntReserva.builder()
                 .idsala(reservaDTO.getIdsala())
                 .idusuario(reservaDTO.getIdusuario())
@@ -113,7 +120,35 @@ public class ReservaService {
 
         return mapToDTO(reservaRepository.save(entReserva));
     }
+    private void validarRestricaoUsuarioComProfissional(ReservaDTO dto) {
+        // 1. Regra de Ouro: Nunca aceitar os dois nulos
+        if (dto.getIdusuario() == null && dto.getIdprofissional() == null) {
+            throw new RuntimeException("A reserva deve estar vinculada a um Usuário ou a um Profissional.");
+        }
 
+        // 2. Validação para Usuário Comum (USER)
+        if (dto.getIdusuario() != null) {
+            com.example.demo.model.User usuario = userRepository.findById(dto.getIdusuario())
+                    .orElseThrow(() -> new RuntimeException("Usuário não encontrado."));
+
+            if ("USER".equals(usuario.getRole().name())) {
+                List<EntReserva> reservasAtivas = reservaRepository.findByIdusuario(dto.getIdusuario());
+                if (!reservasAtivas.isEmpty()) {
+                    throw new RuntimeException("Usuários comuns só podem possuir uma reserva ativa.");
+                }
+            }
+        }
+
+        // 3. Validação para Profissional (Bloqueio de múltiplas reservas)
+        if (dto.getIdprofissional() != null) {
+            // Buscamos se já existe alguma reserva para este profissional
+            List<EntReserva> reservasProfissional = reservaRepository.findByIdprofissional(dto.getIdprofissional());
+
+            if (!reservasProfissional.isEmpty()) {
+                throw new RuntimeException("Este profissional já possui uma reserva ativa e não pode realizar outra.");
+            }
+        }
+    }
     private void validarDisponibilidade(ReservaDTO dto) {
         int lotMax = (int) salaRepository.findById(dto.getIdsala())
                 .orElseThrow(() -> new RuntimeException("Sala não encontrada"))
