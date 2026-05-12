@@ -147,6 +147,14 @@ public class SalaController {
         return ResponseEntity.ok(salaService.buscarPorEndereco(endereco));
     }
 
+    // 8. Buscar por Endereço e Disponibilidade
+    @GetMapping("/buscar-filtro")
+    public ResponseEntity<List<SalaDTO>> buscarPorEnderecoEDisponibilidade(
+            @RequestParam String endereco,
+            @RequestParam Boolean disponivel) {
+        return ResponseEntity.ok(salaService.buscarPorEnderecoEDisponibilidade(endereco, disponivel));
+    }
+
     // 6. Editar Sala
     @PutMapping("/{id}")
     public ResponseEntity<SalaDTO> editar(@PathVariable Long id, @RequestBody SalaDTO salaDTO) {
