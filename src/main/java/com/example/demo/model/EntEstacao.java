@@ -1,6 +1,7 @@
 package com.example.demo.model;
 
 import jakarta.persistence.*;
+import jakarta.validation.constraints.NotNull;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -21,7 +22,8 @@ public class EntEstacao{
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "idestacao")
     private Long idestacao;
-    @Column(name = "idsala")
+    @NotNull(message = "O ID da sala é obrigatório") // 👈 Valida na entrada da API (Gera Erro 400)
+    @Column(name = "idsala", nullable = false)
     private Long idsala;
     @Column(name = "descricao")
     private String descricao;

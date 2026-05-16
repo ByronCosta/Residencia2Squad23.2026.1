@@ -84,6 +84,13 @@ public class SalaService {
                 .map(this::mapToDTO)
                 .collect(Collectors.toList());
     }
+
+    // 8. Buscar salas compatíveis com a quantidade de perfis Dev e Design exigidos
+    public List<SalaDTO> buscarSalasPorCapacidadeDePerfis(Long qtdDev, Long qtdDesign) {
+        return salaRepository.buscarSalasPorCapacidadeDePerfis(qtdDev, qtdDesign).stream()
+                .map(this::mapToDTO)
+                .collect(Collectors.toList());
+    }
     // Método Auxiliar de Mapeamento (Seguindo o seu padrão do ReservaService)
     private SalaDTO mapToDTO(EntSala sala) {
         return SalaDTO.builder()

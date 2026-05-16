@@ -1,10 +1,8 @@
 package com.example.demo.model;
 
 import jakarta.persistence.*;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Data;
-import lombok.NoArgsConstructor;
+import jakarta.validation.constraints.NotNull;
+import lombok.*;
 
 import java.sql.Time;
 import java.time.LocalDate;
@@ -22,10 +20,9 @@ public class EntReserva {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "idreserva")
     private Long idreserva;
-
-    @Column(name = "idsala")
+    @NotNull(message = "O ID da sala é obrigatório") // 👈 Valida na entrada da API (Gera Erro 400)
+    @Column(name = "idsala", nullable = false)
     private Long idsala;
-
     @Column(name = "idusuario")
     private Long idusuario;
 

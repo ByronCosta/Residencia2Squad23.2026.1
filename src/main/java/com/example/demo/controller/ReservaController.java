@@ -10,6 +10,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
+import java.time.LocalTime; // Importação correta
 import java.util.List;
 
 @RestController
@@ -27,12 +28,9 @@ public class ReservaController {
     @PostMapping
     public ResponseEntity<?> adicionar(@RequestBody ReservaDTO reservaDTO) {
         try {
-            // Tenta adicionar a reserva executando as validações do Service
             ReservaDTO novaReserva = reservaService.adicionarReserva(reservaDTO);
             return ResponseEntity.status(HttpStatus.CREATED).body(novaReserva);
         } catch (RuntimeException e) {
-            // Se cair aqui, é porque a validação de lotação ou disponibilidade falhou
-            // Retorna 400 (Bad Request) com a mensagem personalizada
             return ResponseEntity.badRequest().body(e.getMessage());
         }
     }
@@ -78,28 +76,51 @@ public class ReservaController {
         return ResponseEntity.ok(reservaService.buscarPorProfissional(idprofissional));
     }
 
-    // Endpoint para reserva de grupo (JUNTAS)
     @PreAuthorize("hasAnyRole('LIDER', 'ADMIN')")
     @PostMapping("/grupo")
     public ResponseEntity<List<ReservaDTO>> reservarEmGrupo(
             @RequestBody ReservaDTO baseDTO,
             @RequestParam int totalPessoas,
             @RequestParam Long idEstacaoReferencia) {
-
         List<ReservaDTO> reservas = reservaService.adicionarReservaEmGrupo(baseDTO, totalPessoas, idEstacaoReferencia);
         return ResponseEntity.ok(reservas);
     }
 
-    // Endpoint para reserva espaçada (SEPARADAS)
     @PreAuthorize("hasAnyRole('LIDER', 'ADMIN')")
     @PostMapping("/separadas")
     public ResponseEntity<List<ReservaDTO>> reservarSeparadas(
             @RequestBody ReservaDTO baseDTO,
             @RequestParam int totalPessoas,
             @RequestParam int salto) {
-
         List<ReservaDTO> reservas = reservaService.adicionarReservaSeparada(baseDTO, totalPessoas, salto);
         return ResponseEntity.ok(reservas);
     }
 
+    // --- CORREÇÃO DO MÉTODO VALIDAR-VAGA ---
+    @GetMapping("/validar-vaga")
+    public ResponseEntity<?> validarVaga(
+            @RequestParam Long idsala,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dataInicial,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dataFinal,
+            @RequestParam @DateTimeFormat(pattern = "HH:mm") LocalTime horaInicial,
+            @RequestParam @DateTimeFormat(pattern = "HH:mm") LocalTime horaFinal) {
+
+        try {
+            // Monta o DTO temporário para validação
+            ReservaDTO tempDTO = ReservaDTO.builder()
+                    .idsala(idsala)
+                    .datainicial(dataInicial)
+                    .datafinal(dataFinal)
+                    .horainicial(horaInicial)
+                    .horafinal(horaFinal)
+                    .build();
+
+            reservaService.validarDisponibilidade(tempDTO);
+            return ResponseEntity.ok(true);
+
+        } catch (RuntimeException e) {
+            // Retorna o conflito com a mensagem da lotação
+            return ResponseEntity.status(HttpStatus.CONFLICT).body(e.getMessage());
+        }
+    }
 }

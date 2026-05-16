@@ -149,7 +149,7 @@ public class ReservaService {
             }
         }
     }
-    private void validarDisponibilidade(ReservaDTO dto) {
+    public void validarDisponibilidade(ReservaDTO dto) {
         int lotMax = (int) salaRepository.findById(dto.getIdsala())
                 .orElseThrow(() -> new RuntimeException("Sala não encontrada"))
                 .getLot_max();
