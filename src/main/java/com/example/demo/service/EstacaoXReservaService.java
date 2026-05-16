@@ -1,11 +1,9 @@
 package com.example.demo.service;
 
 import com.example.demo.dto.EstacaoXReservaDTO;
+import com.example.demo.dto.ReservaRequestDTO;
 import com.example.demo.model.*;
-import com.example.demo.repository.EstacaoXReservaRepository;
-import com.example.demo.repository.ReservaRepository;
-import com.example.demo.repository.SalaRepository;
-import com.example.demo.repository.UserRepository; // Importante
+import com.example.demo.repository.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -26,15 +24,71 @@ public class EstacaoXReservaService {
     private SalaRepository salaRepository;
 
     @Autowired
-    private UserRepository userRepository; // Injetado para validar a Role
+    private UserRepository userRepository;
 
+    @Autowired
+    private EstacaoRepository estacaoRepository;
+
+    /**
+     * NOVO MÉTODO: Realiza reserva automática buscando salas com capacidade de perfis (Dev/Design)
+     */
+    /*@Transactional
+    public EntReserva realizarReservaPorPerfis(ReservaRequestDTO dto) {
+        // 1. Busca as salas que têm a capacidade física dos perfis
+        List<EntSala> salasEmPotencial = salaRepository.buscarSalasPorCapacidadeDePerfis(dto.getQtdDev(), dto.getQtdDesign());
+
+        if (salasEmPotencial.isEmpty()) {
+            throw new RuntimeException("Não há salas com essa capacidade de perfis cadastrada.");
+        }
+
+        // 2. Varre as salas para encontrar uma que tenha as estações LIVRES no horário
+        for (EntSala sala : salasEmPotencial) {
+            List<EntEstacao> estacoesDevLivres = estacaoRepository.buscarEstacoesLivresPorPerfil(sala.getIdsala(), "dev", dto.getDataInicio().toLocalDate(), dto.getDataFim().toLocalDate());
+            List<EntEstacao> estacoesDesignLivres = estacaoRepository.buscarEstacoesLivresPorPerfil(sala.getIdsala(), "design", dto.getDataInicio().toLocalDate(), dto.getDataFim().toLocalDate());
+
+            // Se a sala tiver assentos livres suficientes para ambos os perfis no horário:
+            if (estacoesDevLivres.size() >= dto.getQtdDev() && estacoesDesignLivres.size() >= dto.getQtdDesign()) {
+
+                EntReserva novaReserva = new EntReserva();
+                novaReserva.setDatainicial(dto.getDataInicio().toLocalDate()); // Ajustado para bater com seu modelo EntReserva
+                novaReserva.setDatafinal(dto.getDataFim().toLocalDate());
+                novaReserva.setIdsala(sala.getIdsala());
+                // novaReserva.setIdusuario(dto.getIdUsuario()); // Vincule o usuário aqui se vier no DTO
+
+                novaReserva = reservaRepository.save(novaReserva);
+
+                // 3. Salva os vínculos na tabela intermediária limitando à quantidade pedida
+                vincularAssentosAReserva(novaReserva, estacoesDevLivres, dto.getQtdDev().intValue());
+                vincularAssentosAReserva(novaReserva, estacoesDesignLivres, dto.getQtdDesign().intValue());
+
+                return novaReserva;
+            }
+        }
+
+        throw new RuntimeException("Nenhuma sala possui essa quantidade de estações LIVRES no horário selecionado.");
+    }
+*/
+    private void vincularAssentosAReserva(EntReserva reserva, List<EntEstacao> estacoesLivres, Integer quantidadeNecessaria) {
+        for (int i = 0; i < quantidadeNecessaria; i++) {
+            EntEstacao estacao = estacoesLivres.get(i);
+
+            EntEstacaoXReserva vinculo = EntEstacaoXReserva.builder()
+                    .idreserva(reserva.getIdreserva())
+                    .idestacao(estacao.getIdestacao())
+                    .build();
+
+            repository.save(vinculo);
+        }
+    }
+
+    /**
+     * MÉTODO EXISTENTE: Inserção manual de uma única estação em uma reserva
+     */
     @Transactional
     public EstacaoXReservaDTO inserir(EstacaoXReservaDTO dto) {
-        // 1. Recupera os dados da Reserva pai
         EntReserva reserva = reservaRepository.findById(dto.getIdreserva())
                 .orElseThrow(() -> new RuntimeException("Reserva pai não encontrada."));
 
-        // 2. Validações de Regra de Negócio (Capacidade e Perfil)
         validarCapacidadeDisponivel(reserva);
         validarRestricoesPerfilUser(reserva);
 
@@ -47,31 +101,20 @@ public class EstacaoXReservaService {
         return mapToDTO(salva);
     }
 
-    /**
-     * Aplica as travas para a Role USER e vínculo com Profissional
-     */
     private void validarRestricoesPerfilUser(EntReserva reserva) {
-        // Buscamos o usuário dono da reserva
         User usuario = userRepository.findById(reserva.getIdusuario())
                 .orElseThrow(() -> new RuntimeException("Usuário dono da reserva não encontrado."));
 
-        // Se for Role USER, aplicamos as restrições
         if ("USER".equals(usuario.getRole().name())) {
-
-            // REGRA 1: Somente uma estação por reserva na tabela EstacaoXReserva
             long estacoesNestaReserva = repository.findByIdreserva(reserva.getIdreserva()).size();
             if (estacoesNestaReserva >= 1) {
-                throw new RuntimeException("Usuários com perfil 'USER' só podem reservar uma estação (cadeira) por reserva.");
+                throw new RuntimeException("Usuários com perfil 'USER' só podem reservar uma estação por reserva.");
             }
 
-            // REGRA 2: Se tiver idprofissional, só pode ter UMA reserva no sistema todo
             if (reserva.getIdprofissional() != null) {
                 List<EntReserva> todasAsReservasDoUser = reservaRepository.findByIdusuario(reserva.getIdusuario());
-
-                // Se ele já tem mais de uma reserva criada ou se está tentando adicionar estação a uma
-                // reserva sendo que ele já possui histórico, bloqueamos.
                 if (todasAsReservasDoUser.size() > 1) {
-                    throw new RuntimeException("Usuário 'USER' com vínculo profissional só pode ter uma reserva ativa no sistema.");
+                    throw new RuntimeException("Usuário 'USER' com vínculo profissional só pode ter uma reserva ativa.");
                 }
             }
         }
@@ -96,19 +139,6 @@ public class EstacaoXReservaService {
         return mapToDTO(repository.save(existente));
     }
 
-    // Método para buscar os vínculos por ID de Estação
-    public List<EstacaoXReservaDTO> buscarPorEstacao(Long idestacao) {
-        return repository.findByIdestacao(idestacao).stream()
-                .map(this::mapToDTO)
-                .collect(Collectors.toList());
-    }
-
-    // Método para buscar os vínculos por ID de Reserva
-    public List<EstacaoXReservaDTO> buscarPorReserva(Long idreserva) {
-        return repository.findByIdreserva(idreserva).stream()
-                .map(this::mapToDTO)
-                .collect(Collectors.toList());
-    }
     private void validarCapacidadeDisponivel(EntReserva reserva) {
         EntSala sala = salaRepository.findById(reserva.getIdsala())
                 .orElseThrow(() -> new RuntimeException("Sala não encontrada."));
@@ -126,12 +156,16 @@ public class EstacaoXReservaService {
         }
     }
 
-    // --- Demais métodos mantidos (deletar, buscarTodos, etc) ---
+    public List<EstacaoXReservaDTO> buscarPorEstacao(Long idestacao) {
+        return repository.findByIdestacao(idestacao).stream().map(this::mapToDTO).collect(Collectors.toList());
+    }
+
+    public List<EstacaoXReservaDTO> buscarPorReserva(Long idreserva) {
+        return repository.findByIdreserva(idreserva).stream().map(this::mapToDTO).collect(Collectors.toList());
+    }
 
     public void deletar(Long id) {
-        if (!repository.existsById(id)) {
-            throw new RuntimeException("Vínculo não encontrado.");
-        }
+        if (!repository.existsById(id)) throw new RuntimeException("Vínculo não encontrado.");
         repository.deleteById(id);
     }
 

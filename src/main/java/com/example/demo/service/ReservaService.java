@@ -1,6 +1,7 @@
 package com.example.demo.service;
 
 import com.example.demo.dto.ReservaDTO;
+import com.example.demo.dto.ReservaRequestDTO;
 import com.example.demo.model.EntEstacaoXReserva;
 import com.example.demo.model.EntReserva;
 import com.example.demo.model.EntEstacao;
@@ -8,8 +9,10 @@ import com.example.demo.repository.EstacaoXReservaRepository;
 import com.example.demo.repository.ReservaRepository;
 import com.example.demo.repository.SalaRepository;
 import com.example.demo.repository.EstacaoRepository;
+import com.example.demo.repository.UserRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -30,6 +33,9 @@ public class ReservaService {
 
     @Autowired
     private EstacaoRepository estacaoRepository;
+
+    @Autowired
+    private UserRepository userRepository;
 
     // --- ALGORITMOS DE BUSCA DE ESTAÇÕES ---
 
@@ -52,7 +58,88 @@ public class ReservaService {
         return resultado;
     }
 
-    // --- MÉTODOS PARA ADICIONAR RESERVAS COM LÓGICA (ALGORITMOS) ---
+    // --- MÉTODOS: POR PERFIL (JUNTOS E SEPARADOS) ---
+
+    /**
+     * ALGORITMO 1: Busca estações livres por perfil (Dev/Design) no sistema todo.
+     * Define automaticamente a primeira estação de Dev livre como referência
+     * e agrupa o restante do time por proximidade a partir dela.
+     */
+    @Transactional
+    public List<ReservaDTO> adicionarReservaPorPerfilJuntos(ReservaRequestDTO perfilDTO) {
+        // 1. Busca as estações LIVRES filtradas por perfil no banco (Sistema completo)
+        List<EntEstacao> devsLivres = estacaoRepository.buscarEstacoesLivresPorPerfilSemSala(
+                "dev", perfilDTO.getDataInicio().toLocalDate(), perfilDTO.getDataFim().toLocalDate());
+
+        List<EntEstacao> designsLivres = estacaoRepository.buscarEstacoesLivresPorPerfilSemSala(
+                "design", perfilDTO.getDataInicio().toLocalDate(), perfilDTO.getDataFim().toLocalDate());
+
+        // 2. Valida se existem cadeiras livres suficientes no sistema todo
+        if (devsLivres.isEmpty() || devsLivres.size() < perfilDTO.getQtdDev().intValue() || designsLivres.size() < perfilDTO.getQtdDesign().intValue()) {
+            throw new RuntimeException("Não há estações livres suficientes no sistema para a quantidade de perfis solicitada.");
+        }
+
+        // 3. Define a primeira estação disponível como âncora do time
+        EntEstacao ref = devsLivres.get(0);
+
+        // 4. Descobre dinamicamente o ID da sala com base na estação âncora escolhida
+        Long idSalaDinamico = ref.getIdsala();
+
+        // 5. Aplica o cálculo de proximidade geométrica baseado na estação âncora
+        List<EntEstacao> selecionadas = new ArrayList<>();
+        selecionadas.addAll(buscarEstacoesJuntas(ref, devsLivres, perfilDTO.getQtdDev().intValue()));
+        selecionadas.addAll(buscarEstacoesJuntas(ref, designsLivres, perfilDTO.getQtdDesign().intValue()));
+
+        // 6. Converte para o DTO passando o ID da sala que o algoritmo escolheu
+        ReservaDTO baseDTO = converterParaReservaDTO(perfilDTO, idSalaDinamico);
+
+        return salvarMultiplasReservas(baseDTO, selecionadas);
+    }
+
+    /**
+     * ALGORITMO 2: Busca estações livres por perfil (Dev/Design) no sistema todo e espalha o time
+     * aplicando um salto de índices. Descobre a sala dinamicamente.
+     */
+    @Transactional
+    public List<ReservaDTO> adicionarReservaPorPerfilSeparados(ReservaRequestDTO perfilDTO, int salto) {
+        // 1. Busca as estações LIVRES filtradas por perfil no banco (Sistema completo)
+        List<EntEstacao> devsLivres = estacaoRepository.buscarEstacoesLivresPorPerfilSemSala(
+                "dev", perfilDTO.getDataInicio().toLocalDate(), perfilDTO.getDataFim().toLocalDate());
+
+        List<EntEstacao> designsLivres = estacaoRepository.buscarEstacoesLivresPorPerfilSemSala(
+                "design", perfilDTO.getDataInicio().toLocalDate(), perfilDTO.getDataFim().toLocalDate());
+
+        // 2. Valida se há estações suficientes livres no sistema
+        if (devsLivres.isEmpty() || devsLivres.size() < perfilDTO.getQtdDev().intValue() || designsLivres.size() < perfilDTO.getQtdDesign().intValue()) {
+            throw new RuntimeException("Não há estações livres suficientes no sistema para a quantidade de perfis solicitada.");
+        }
+
+        // 3. Descobre dinamicamente o ID da sala com base na primeira estação de dev encontrada
+        Long idSalaDinamico = devsLivres.get(0).getIdsala();
+
+        // 4. Seleciona as estações aplicando a lógica do salto
+        List<EntEstacao> selecionadas = new ArrayList<>();
+        selecionadas.addAll(buscarEstacoesSeparadas(devsLivres, salto, perfilDTO.getQtdDev().intValue()));
+        selecionadas.addAll(buscarEstacoesSeparadas(designsLivres, salto, perfilDTO.getQtdDesign().intValue()));
+
+        // 5. Converte para o DTO passando o ID da sala obtido dinamicamente
+        ReservaDTO baseDTO = converterParaReservaDTO(perfilDTO, idSalaDinamico);
+
+        return salvarMultiplasReservas(baseDTO, selecionadas);
+    }
+
+    private ReservaDTO converterParaReservaDTO(ReservaRequestDTO perfilDTO, Long idSala) {
+        return ReservaDTO.builder()
+                .idsala(idSala)
+                .idusuario(perfilDTO.getIdUsuario())
+                .datainicial(perfilDTO.getDataInicio().toLocalDate())
+                .datafinal(perfilDTO.getDataFim().toLocalDate())
+                .horainicial(perfilDTO.getDataInicio().toLocalTime())
+                .horafinal(perfilDTO.getDataFim().toLocalTime())
+                .build();
+    }
+
+    // --- MÉTODOS PARA ADICIONAR RESERVAS COM LÓGICA (ALGORITMOS ORIGINAIS) ---
 
     public List<ReservaDTO> adicionarReservaEmGrupo(ReservaDTO baseDTO, int totalPessoas, Long idEstacaoReferencia) {
         EntEstacao ref = estacaoRepository.findById(idEstacaoReferencia)
@@ -98,14 +185,9 @@ public class ReservaService {
     }
 
     // --- MÉTODOS CRUD ORIGINAIS ---
-    @Autowired
-    private com.example.demo.repository.UserRepository userRepository; // Adicione este Autowired se não houver
 
     public ReservaDTO adicionarReserva(ReservaDTO reservaDTO) {
-        // 1. Validar disponibilidade física da sala
         validarDisponibilidade(reservaDTO);
-
-        // 2. Aplicar regra de negócio para papel 'USER' com idprofissional
         validarRestricaoUsuarioComProfissional(reservaDTO);
 
         EntReserva entReserva = EntReserva.builder()
@@ -120,13 +202,12 @@ public class ReservaService {
 
         return mapToDTO(reservaRepository.save(entReserva));
     }
+
     private void validarRestricaoUsuarioComProfissional(ReservaDTO dto) {
-        // 1. Regra de Ouro: Nunca aceitar os dois nulos
         if (dto.getIdusuario() == null && dto.getIdprofissional() == null) {
             throw new RuntimeException("A reserva deve estar vinculada a um Usuário ou a um Profissional.");
         }
 
-        // 2. Validação para Usuário Comum (USER)
         if (dto.getIdusuario() != null) {
             com.example.demo.model.User usuario = userRepository.findById(dto.getIdusuario())
                     .orElseThrow(() -> new RuntimeException("Usuário não encontrado."));
@@ -139,16 +220,14 @@ public class ReservaService {
             }
         }
 
-        // 3. Validação para Profissional (Bloqueio de múltiplas reservas)
         if (dto.getIdprofissional() != null) {
-            // Buscamos se já existe alguma reserva para este profissional
             List<EntReserva> reservasProfissional = reservaRepository.findByIdprofissional(dto.getIdprofissional());
-
             if (!reservasProfissional.isEmpty()) {
                 throw new RuntimeException("Este profissional já possui uma reserva ativa e não pode realizar outra.");
             }
         }
     }
+
     public void validarDisponibilidade(ReservaDTO dto) {
         int lotMax = (int) salaRepository.findById(dto.getIdsala())
                 .orElseThrow(() -> new RuntimeException("Sala não encontrada"))
@@ -196,7 +275,6 @@ public class ReservaService {
     }
 
     private List<ReservaDTO> salvarMultiplasReservas(ReservaDTO dto, List<EntEstacao> estacoes) {
-        // 1. Cria a Reserva única (O "Pai")
         EntReserva reservaPai = EntReserva.builder()
                 .idsala(dto.getIdsala())
                 .idusuario(dto.getIdusuario())
@@ -209,18 +287,17 @@ public class ReservaService {
 
         EntReserva reservaSalva = reservaRepository.save(reservaPai);
 
-        // 2. Cria os vínculos para cada estação selecionada pelo algoritmo
         for (EntEstacao estacao : estacoes) {
             EntEstacaoXReserva vinculo = EntEstacaoXReserva.builder()
-                    .idreserva(reservaSalva.getIdreserva()) // ID da reserva única
-                    .idestacao(estacao.getIdestacao())     // ID de cada estação do grupo
+                    .idreserva(reservaSalva.getIdreserva())
+                    .idestacao(estacao.getIdestacao())
                     .build();
             estacaoXReservaRepository.save(vinculo);
         }
 
-        // Retorna a reserva pai como DTO dentro de uma lista
         return List.of(mapToDTO(reservaSalva));
     }
+
     private ReservaDTO mapToDTO(EntReserva reserva) {
         return ReservaDTO.builder()
                 .idreserva(reserva.getIdreserva())

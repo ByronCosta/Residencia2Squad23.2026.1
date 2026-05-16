@@ -1,6 +1,7 @@
 package com.example.demo.controller;
 
 import com.example.demo.dto.ReservaDTO;
+import com.example.demo.dto.ReservaRequestDTO; // Importado o DTO de perfis
 import com.example.demo.service.ReservaService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -10,7 +11,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
-import java.time.LocalTime; // Importação correta
+import java.time.LocalTime;
 import java.util.List;
 
 @RestController
@@ -23,6 +24,41 @@ public class ReservaController {
     @Autowired
     private ReservaService reservaService;
 
+    // --- MÉTODOS: POR PERFIL (NOVOS ALGORITMOS) ---
+
+    /**
+     * ALGORITMO 1: Reserva assentos Dev/Design juntos (Proximidade Euclidiana)
+     * POST http://localhost:5173/reservas/por-perfil/juntos/sala/{idSala}
+     */
+    @PreAuthorize("hasAnyRole('LIDER', 'ADMIN')")
+    @PostMapping("/por-perfil/juntos") // URL limpa, sem o /sala/{idSala}
+    public ResponseEntity<?> adicionarPorPerfilJuntos(
+            @RequestBody ReservaRequestDTO perfilDTO) { // Removido o @PathVariable
+        try {
+            // Agora chama o service passando apenas o DTO
+            List<ReservaDTO> reservas = reservaService.adicionarReservaPorPerfilJuntos(perfilDTO);
+            return ResponseEntity.status(HttpStatus.CREATED).body(reservas);
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
+    }
+    /**
+     * ALGORITMO 2: Reserva assentos Dev/Design separados (Estratégia de Salto)
+     * POST http://localhost:5173/reservas/por-perfil/separados/sala/{idSala}?salto=2
+     */
+    @PreAuthorize("hasAnyRole('LIDER', 'ADMIN')")
+    @PostMapping("/por-perfil/separados") // URL limpa sem a sala
+    public ResponseEntity<?> adicionarPorPerfilSeparados(
+            @RequestParam(defaultValue = "1") int salto,
+            @RequestBody ReservaRequestDTO perfilDTO) {
+        try {
+            // Chama o service atualizado sem passar o idSala fixo
+            List<ReservaDTO> reservas = reservaService.adicionarReservaPorPerfilSeparados(perfilDTO, salto);
+            return ResponseEntity.status(HttpStatus.CREATED).body(reservas);
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
+    }
     // --- MÉTODOS CRUD BÁSICOS ---
 
     @PostMapping
@@ -59,7 +95,7 @@ public class ReservaController {
         return ResponseEntity.ok(reservaService.deletarReserva(id));
     }
 
-    // --- NOVOS MÉTODOS DE BUSCA (FILTROS) ---
+    // --- MÉTODOS DE BUSCA (FILTROS ORIGINAIS) ---
 
     @GetMapping("/sala/{idsala}")
     public ResponseEntity<List<ReservaDTO>> buscarPorSala(@PathVariable Long idsala) {
@@ -106,7 +142,6 @@ public class ReservaController {
             @RequestParam @DateTimeFormat(pattern = "HH:mm") LocalTime horaFinal) {
 
         try {
-            // Monta o DTO temporário para validação
             ReservaDTO tempDTO = ReservaDTO.builder()
                     .idsala(idsala)
                     .datainicial(dataInicial)
@@ -119,7 +154,6 @@ public class ReservaController {
             return ResponseEntity.ok(true);
 
         } catch (RuntimeException e) {
-            // Retorna o conflito com a mensagem da lotação
             return ResponseEntity.status(HttpStatus.CONFLICT).body(e.getMessage());
         }
     }
