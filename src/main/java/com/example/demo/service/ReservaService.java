@@ -5,6 +5,7 @@ import com.example.demo.dto.ReservaRequestDTO;
 import com.example.demo.model.EntEstacaoXReserva;
 import com.example.demo.model.EntReserva;
 import com.example.demo.model.EntEstacao;
+import com.example.demo.model.EntSala;
 import com.example.demo.repository.EstacaoXReservaRepository;
 import com.example.demo.repository.ReservaRepository;
 import com.example.demo.repository.SalaRepository;
@@ -14,9 +15,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.List;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Service
@@ -296,6 +295,105 @@ public class ReservaService {
         }
 
         return List.of(mapToDTO(reservaSalva));
+    }
+
+    /**
+     * CONSULTA: Retorna todas as salas que possuem estações LIVRES juntas
+     * suficientes para atender o perfil solicitado.
+     */
+    @Transactional(readOnly = true)
+    public List<EntSala> consultarSalasDisponiveisJuntos(ReservaRequestDTO perfilDTO) {
+        // 1. Busca todas as estações livres no período
+        List<EntEstacao> devsLivres = estacaoRepository.buscarEstacoesLivresPorPerfilSemSala(
+                "dev", perfilDTO.getDataInicio().toLocalDate(), perfilDTO.getDataFim().toLocalDate());
+
+        List<EntEstacao> designsLivres = estacaoRepository.buscarEstacoesLivresPorPerfilSemSala(
+                "design", perfilDTO.getDataInicio().toLocalDate(), perfilDTO.getDataFim().toLocalDate());
+
+        // Se não houver o mínimo exigido no sistema todo, já para aqui
+        if (devsLivres.size() < perfilDTO.getQtdDev().intValue() || designsLivres.size() < perfilDTO.getQtdDesign().intValue()) {
+            return Collections.emptyList();
+        }
+
+        Set<Long> idsSalasValidas = new HashSet<>();
+        List<EntSala> salasDisponiveis = new ArrayList<>();
+
+        // 2. Analisa cada estação de Dev livre como uma potencial âncora
+        for (EntEstacao ref : devsLivres) {
+            Long idSalaAtual = ref.getIdsala();
+
+            // Evita retestar uma sala que já foi validada e adicionada
+            if (idsSalasValidas.contains(idSalaAtual)) {
+                continue;
+            }
+
+            // Filtra as estações disponíveis especificamente nesta sala para o teste geométrico
+            List<EntEstacao> devsDaSala = devsLivres.stream().filter(e -> e.getIdsala().equals(idSalaAtual)).collect(Collectors.toList());
+            List<EntEstacao> designsDaSala = designsLivres.stream().filter(e -> e.getIdsala().equals(idSalaAtual)).collect(Collectors.toList());
+
+            // Verifica se a sala sozinha tem a quantidade mínima antes de calcular proximidade
+            if (devsDaSala.size() >= perfilDTO.getQtdDev().intValue() && designsDaSala.size() >= perfilDTO.getQtdDesign().intValue()) {
+                try {
+                    // Testamos se o algoritmo consegue agrupar com sucesso nessa sala
+                    buscarEstacoesJuntas(ref, devsDaSala, perfilDTO.getQtdDev().intValue());
+                    buscarEstacoesJuntas(ref, designsDaSala, perfilDTO.getQtdDesign().intValue());
+
+                    // Se não estourou Exception, a sala é perfeitamente viável!
+                    idsSalasValidas.add(idSalaAtual);
+
+                    // Busca a entidade da sala (ajuste conforme o método do seu salaRepository)
+                    salaRepository.findById(idSalaAtual).ifPresent(salasDisponiveis::add);
+                } catch (Exception e) {
+                    // Se a disposição geométrica falhar para esta âncora, continua testando as próximas
+                }
+            }
+        }
+
+        return salasDisponiveis;
+    }
+
+    /**
+     * CONSULTA: Retorna as salas que possuem estações LIVRES que atendam
+     * à quantidade permitindo a estratégia de espaçamento (Salto).
+     */
+    @Transactional(readOnly = true)
+    public List<EntSala> consultarSalasDisponiveisSeparados(ReservaRequestDTO perfilDTO, int salto) {
+        List<EntEstacao> devsLivres = estacaoRepository.buscarEstacoesLivresPorPerfilSemSala(
+                "dev", perfilDTO.getDataInicio().toLocalDate(), perfilDTO.getDataFim().toLocalDate());
+
+        List<EntEstacao> designsLivres = estacaoRepository.buscarEstacoesLivresPorPerfilSemSala(
+                "design", perfilDTO.getDataInicio().toLocalDate(), perfilDTO.getDataFim().toLocalDate());
+
+        if (devsLivres.size() < perfilDTO.getQtdDev().intValue() || designsLivres.size() < perfilDTO.getQtdDesign().intValue()) {
+            return Collections.emptyList();
+        }
+
+        Set<Long> idsSalasValidas = new HashSet<>();
+        List<EntSala> salasDisponiveis = new ArrayList<>();
+
+        // Agrupa por ID de sala para testar a viabilidade do salto isoladamente em cada uma
+        Map<Long, List<EntEstacao>> devsPorSala = devsLivres.stream().collect(Collectors.groupingBy(EntEstacao::getIdsala));
+        Map<Long, List<EntEstacao>> designsPorSala = designsLivres.stream().collect(Collectors.groupingBy(EntEstacao::getIdsala));
+
+        for (Long idSala : devsPorSala.keySet()) {
+            List<EntEstacao> devsDaSala = devsPorSala.get(idSala);
+            List<EntEstacao> designsDaSala = designsPorSala.getOrDefault(idSala, Collections.emptyList());
+
+            if (devsDaSala.size() >= perfilDTO.getQtdDev().intValue() && designsDaSala.size() >= perfilDTO.getQtdDesign().intValue()) {
+                try {
+                    // Testamos se a lógica do salto fecha a conta nesta sala
+                    buscarEstacoesSeparadas(devsDaSala, salto, perfilDTO.getQtdDev().intValue());
+                    buscarEstacoesSeparadas(designsDaSala, salto, perfilDTO.getQtdDesign().intValue());
+
+                    idsSalasValidas.add(idSala);
+                    salaRepository.findById(idSala).ifPresent(salasDisponiveis::add);
+                } catch (Exception e) {
+                    // Ignora se não houver espaço suficiente para aplicar o salto nesta sala
+                }
+            }
+        }
+
+        return salasDisponiveis;
     }
 
     private ReservaDTO mapToDTO(EntReserva reserva) {

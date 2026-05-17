@@ -2,6 +2,7 @@ package com.example.demo.controller;
 
 import com.example.demo.dto.ReservaDTO;
 import com.example.demo.dto.ReservaRequestDTO; // Importado o DTO de perfis
+import com.example.demo.model.EntSala;
 import com.example.demo.service.ReservaService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -58,6 +59,32 @@ public class ReservaController {
         } catch (RuntimeException e) {
             return ResponseEntity.badRequest().body(e.getMessage());
         }
+    }
+
+
+    /**
+     * CONSULTA SALAS: Algoritmo Juntos
+     * POST http://localhost:8080/reservas/por-perfil/juntos/buscar-salas
+     */
+    @PreAuthorize("hasAnyRole('LIDER', 'ADMIN', 'USER')") // Liberado para USER consultar também, se quiser
+    @PostMapping("/por-perfil/juntos/buscar-salas")
+    public ResponseEntity<List<EntSala>> buscarSalasPorPerfilJuntos(
+            @RequestBody ReservaRequestDTO perfilDTO) {
+        List<EntSala> salas = reservaService.consultarSalasDisponiveisJuntos(perfilDTO);
+        return ResponseEntity.ok(salas);
+    }
+
+    /**
+     * CONSULTA SALAS: Algoritmo Separados (Salto)
+     * POST http://localhost:8080/reservas/por-perfil/separados/buscar-salas
+     */
+    @PreAuthorize("hasAnyRole('LIDER', 'ADMIN', 'USER')")
+    @PostMapping("/por-perfil/separados/buscar-salas")
+    public ResponseEntity<List<EntSala>> buscarSalasPorPerfilSeparados(
+            @RequestParam(defaultValue = "1") int salto,
+            @RequestBody ReservaRequestDTO perfilDTO) {
+        List<EntSala> salas = reservaService.consultarSalasDisponiveisSeparados(perfilDTO, salto);
+        return ResponseEntity.ok(salas);
     }
     // --- MÉTODOS CRUD BÁSICOS ---
 
