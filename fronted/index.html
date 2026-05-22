@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>RoomFlow — Accenture</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+
+<!-- ════════════════════════════════
+     LOGIN PAGE
+════════════════════════════════ -->
+<div id="login-page">
+  <div class="login-card">
+    <div class="login-logo">
+      <div class="login-logo-icon"><i class="ti ti-building"></i></div>
+      <div>
+        <div class="login-logo-text">Room<span>Flow</span></div>
+        <div class="login-brand">Accenture · Gestão de Salas</div>
+      </div>
+    </div>
+
+    <div class="login-title">Bem-vindo de volta</div>
+    <div class="login-sub">Faça login com suas credenciais corporativas</div>
+
+    <div class="login-error" id="login-error"><i class="ti ti-alert-circle"></i><span id="login-error-msg">Usuário ou senha inválidos</span></div>
+
+    <div class="form-group" style="margin-bottom:14px">
+      <label class="form-label">Usuário</label>
+      <input type="text" class="form-input" id="l-user" placeholder="seu.usuario@accenture.com" autocomplete="username">
+    </div>
+
+    <div class="form-group" style="margin-bottom:22px">
+      <label class="form-label">Senha</label>
+      <div style="position:relative">
+        <input type="password" class="form-input" id="l-pass" placeholder="••••••••" autocomplete="current-password" style="padding-right:44px">
+        <button onclick="togglePassword()" style="position:absolute;right:12px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--text3);cursor:pointer;font-size:18px;display:flex;align-items:center" id="toggle-pass-btn"><i class="ti ti-eye" id="pass-eye"></i></button>
+      </div>
+    </div>
+
+    <button class="btn btn-primary" style="width:100%;justify-content:center;padding:12px;font-size:14px" id="login-btn" onclick="doLogin()">
+      <i class="ti ti-login"></i> Entrar
+    </button>
+
+    <div class="login-footer">
+      Powered by <strong>Accenture</strong> · Sistema de Gestão de Salas
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════
+     APP
+════════════════════════════════ -->
+<div id="app" style="display:none; width:100%">
+
+  <div class="sidebar-overlay" id="sidebar-overlay" onclick="closeSidebar()"></div>
+
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-logo">
+      <div class="logo-mark">
+        <div class="logo-icon"><i class="ti ti-building"></i></div>
+        <div>
+          <div class="logo-text">Room<span>Flow</span></div>
+          <div class="logo-brand">Accenture</div>
+        </div>
+      </div>
+    </div>
+
+    <nav class="sidebar-nav">
+      <div class="nav-section-label">Principal</div>
+      <button class="nav-item active" id="nav-salas" onclick="setView('salas',this)">
+        <i class="ti ti-door"></i> Salas <span class="nav-badge" id="count-badge">0</span>
+      </button>
+      <button class="nav-item" id="nav-dash" onclick="setView('dashboard',this)">
+        <i class="ti ti-chart-pie"></i> Dashboard
+      </button>
+      
+    </nav>
+
+    <div class="sidebar-footer">
+      <div class="api-status online" id="api-status-badge">
+        <div class="dot"></div>
+        <span id="api-status-text">API Online</span>
+      </div>
+      <div class="user-chip">
+        <div class="user-avatar" id="sidebar-avatar">U</div>
+        <div class="user-info">
+          <p id="sidebar-username">Usuário</p>
+          <span>Accenture Corp</span>
+        </div>
+      </div>
+      <button class="logout-btn" onclick="doLogout()">
+        <i class="ti ti-logout"></i> Sair do sistema
+      </button>
+    </div>
+  </aside>
+
+  <main class="main">
+    <header class="topbar">
+      <button class="hamburger" onclick="toggleSidebar()"><i class="ti ti-menu-2"></i></button>
+      <h1 id="topbar-title">Salas</h1>
+      <div class="topbar-actions">
+        <button class="btn btn-primary" onclick="openModal()"><i class="ti ti-plus"></i> Nova Sala</button>
+        
+      </div>
+    </header>
+
+    <div class="content">
+      <!-- VIEW: SALAS -->
+      <div id="view-salas" class="active">
+        <div class="stats-grid">
+          <div class="stat-card blue">
+            <div class="stat-label"><i class="ti ti-door"></i> Total de Salas</div>
+            <div class="stat-value" id="stat-total">0</div>
+          </div>
+          <div class="stat-card green">
+            <div class="stat-label"><i class="ti ti-circle-check"></i> Disponíveis</div>
+            <div class="stat-value" id="stat-disp">0</div>
+          </div>
+          <div class="stat-card red">
+            <div class="stat-label"><i class="ti ti-circle-x"></i> Ocupadas</div>
+            <div class="stat-value" id="stat-ocup">0</div>
+          </div>
+          <div class="stat-card amber">
+            <div class="stat-label"><i class="ti ti-tool"></i> Manutenção</div>
+            <div class="stat-value" id="stat-manut">0</div>
+          </div>
+        </div>
+
+        <div class="filters-row">
+          <div class="search-box">
+            <i class="ti ti-search"></i>
+            <input type="text" id="search-input" placeholder="Buscar por nome, código ou andar..." oninput="renderRooms()">
+          </div>
+          <select class="filter-select" id="filter-status" onchange="renderRooms()">
+            <option value="">Todos os status</option>
+            <option value="disponivel">Disponível</option>
+            <option value="ocupada">Ocupada</option>
+            <option value="manutencao">Manutenção</option>
+          </select>
+          <select class="filter-select" id="filter-andar" onchange="renderRooms()">
+            <option value="">Todos os andares</option>
+          </select>
+          <select class="filter-select" id="filter-tipo" onchange="renderRooms()">
+            <option value="">Todos os tipos</option>
+            <option value="reuniao">Reunião</option>
+            <option value="auditorio">Auditório</option>
+            <option value="treinamento">Treinamento</option>
+            <option value="escritorio">Escritório</option>
+            <option value="laboratorio">Laboratório</option>
+            <option value="outro">Outro</option>
+          </select>
+          <div class="view-toggle">
+            <button class="view-btn active" id="btn-grid" onclick="setGridView('grid')"><i class="ti ti-layout-grid"></i></button>
+            <button class="view-btn" id="btn-list" onclick="setGridView('list')"><i class="ti ti-list"></i></button>
+          </div>
+        </div>
+
+        <div id="rooms-container" class="rooms-grid"></div>
+      </div>
+
+      <!-- VIEW: DASHBOARD -->
+      <div id="view-dashboard">
+        <div class="dashboard-grid" id="dashboard-grid"></div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- MODAL: NOVA/EDITAR SALA -->
+<div class="modal-overlay" id="modal-overlay" onclick="closeModalOnBg(event)">
+  <div class="modal">
+    <div class="modal-header">
+      <h2 class="modal-title" id="modal-title">Nova Sala</h2>
+      <button class="modal-close" onclick="closeModal()"><i class="ti ti-x"></i></button>
+    </div>
+    <div class="modal-body">
+      <div class="form-grid">
+        <div class="form-group">
+          <label class="form-label">Nome da Sala</label>
+          <input type="text" class="form-input" id="f-nome" placeholder="Ex: Sala de Reunião Alpha">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Código/ID</label>
+          <input type="text" class="form-input" id="f-codigo" placeholder="Ex: SAL-101">
+        </div>
+      </div>
+      <div class="form-grid">
+        <div class="form-group">
+          <label class="form-label">Andar / Localização</label>
+          <input type="text" class="form-input" id="f-andar" placeholder="Ex: 3º Andar">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Capacidade (pessoas)</label>
+          <input type="number" class="form-input" id="f-capacidade" placeholder="Ex: 10">
+        </div>
+      </div>
+      <div class="form-grid">
+        <div class="form-group">
+          <label class="form-label">Área (m²)</label>
+          <input type="number" class="form-input" id="f-area" placeholder="Ex: 45">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Tipo de Sala</label>
+          <select class="form-select" id="f-tipo">
+            <option value="reuniao">Reunião</option>
+            <option value="auditorio">Auditório</option>
+            <option value="treinamento">Treinamento</option>
+            <option value="escritorio">Escritório</option>
+            <option value="laboratorio">Laboratório</option>
+            <option value="outro">Outro</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-grid">
+        <div class="form-group">
+          <label class="form-label">Status Inicial</label>
+          <select class="form-select" id="f-status">
+            <option value="disponivel">Disponível</option>
+            <option value="ocupada">Ocupada</option>
+            <option value="manutencao">Manutenção</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Responsável</label>
+          <input type="text" class="form-input" id="f-responsavel" placeholder="Nome do gestor">
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Descrição</label>
+        <textarea class="form-textarea" id="f-descricao" placeholder="Detalhes adicionais sobre a sala..."></textarea>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Comodidades</label>
+        <div class="amenity-chips">
+          <div class="amenity-chip" onclick="toggleAmenity(this)"><i class="ti ti-video"></i> Videoconferência</div>
+          <div class="amenity-chip" onclick="toggleAmenity(this)"><i class="ti ti-presentation"></i> Projetor</div>
+          <div class="amenity-chip" onclick="toggleAmenity(this)"><i class="ti ti-device-tv"></i> TV/Monitor</div>
+          <div class="amenity-chip" onclick="toggleAmenity(this)"><i class="ti ti-snowflake"></i> Ar condicionado</div>
+          <div class="amenity-chip" onclick="toggleAmenity(this)"><i class="ti ti-wifi"></i> Wi-Fi</div>
+          <div class="amenity-chip" onclick="toggleAmenity(this)"><i class="ti ti-chalkboard"></i> Quadro branco</div>
+          <div class="amenity-chip" onclick="toggleAmenity(this)"><i class="ti ti-coffee"></i> Cafeteira</div>
+        </div>
+      </div>
+
+      <div class="form-group" style="margin-top:20px">
+        <div class="upload-tabs" style="display:flex;gap:10px;margin-bottom:12px">
+          <button class="btn btn-ghost upload-tab active" onclick="switchUploadTab('planta',this)" style="flex:1;font-size:12px">Planta (PDF)</button>
+          <button class="btn btn-ghost upload-tab" onclick="switchUploadTab('fotos',this)" style="flex:1;font-size:12px">Fotos (JPG/PNG)</button>
+        </div>
+        
+        <div id="tab-planta">
+          <div class="drop-zone" id="drop-planta" ondragover="handleDragOver(event,'drop-planta')" ondragleave="handleDragLeave('drop-planta')" ondrop="handleDrop(event,'planta')">
+            <input type="file" accept="application/pdf" onchange="handleFileSelect(event,'planta')">
+            <i class="ti ti-file-upload drop-zone-icon"></i>
+            <p class="drop-zone-text">Arraste a planta em PDF ou clique para selecionar</p>
+            <p class="drop-zone-sub">Apenas 1 arquivo PDF permitido</p>
+          </div>
+          <div class="file-list" id="planta-list"></div>
+        </div>
+
+        <div id="tab-fotos" style="display:none">
+          <div class="drop-zone" id="drop-fotos" ondragover="handleDragOver(event,'drop-fotos')" ondragleave="handleDragLeave('drop-fotos')" ondrop="handleDrop(event,'fotos')">
+            <input type="file" accept="image/*" multiple onchange="handleFileSelect(event,'fotos')">
+            <i class="ti ti-photo-up drop-zone-icon"></i>
+            <p class="drop-zone-text">Arraste fotos ou clique para selecionar</p>
+            <p class="drop-zone-sub">Múltiplas imagens permitidas</p>
+          </div>
+          <div class="img-preview-grid" id="fotos-preview"></div>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal()">Cancelar</button>
+      <button class="btn btn-primary" id="save-btn" onclick="saveRoom()">
+        <i class="ti ti-device-floppy"></i> <span id="save-btn-text">Salvar Sala</span>
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: DETALHES DA SALA -->
+<div class="modal-overlay" id="detail-overlay" onclick="closeDetailOnBg(event)">
+  <div class="modal" style="max-width:720px">
+    <div class="modal-header">
+      <h2 class="modal-title" id="detail-title">Detalhes da Sala</h2>
+      <button class="modal-close" onclick="closeDetail()"><i class="ti ti-x"></i></button>
+    </div>
+    <div class="modal-body" id="detail-body"></div>
+    <div class="modal-footer" id="detail-footer"></div>
+  </div>
+</div>
+
+<!-- MODAL: CONFIRMAÇÃO DE EXCLUSÃO -->
+<div class="modal-overlay" id="confirm-overlay" onclick="closeConfirmOnBg(event)">
+  <div class="modal confirm-modal">
+    <div class="confirm-icon"><i class="ti ti-trash"></i></div>
+    <h2 class="confirm-title">Excluir Sala?</h2>
+    <p class="confirm-desc">Esta ação não pode ser desfeita. Todos os dados desta sala serão removidos permanentemente.</p>
+    <div class="confirm-btns">
+      <button class="btn btn-ghost" onclick="closeConfirm()">Cancelar</button>
+      <button class="btn btn-danger" onclick="doDelete()">Sim, Excluir</button>
+    </div>
+  </div>
+</div>
+
+<!-- TOASTS CONTAINER -->
+<div class="toasts" id="toasts"></div>
+
+<script src="js/app.js"></script>
+</body>
+</html>
