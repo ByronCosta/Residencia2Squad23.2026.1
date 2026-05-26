@@ -1,7 +1,7 @@
 package com.example.demo.controller;
 
 import com.example.demo.dto.ReservaDTO;
-import com.example.demo.dto.ReservaRequestDTO; // Importado o DTO de perfis
+import com.example.demo.dto.ReservaRequestDTO;
 import com.example.demo.model.EntSala;
 import com.example.demo.service.ReservaService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -25,35 +25,38 @@ public class ReservaController {
     @Autowired
     private ReservaService reservaService;
 
-    // --- MÉTODOS: POR PERFIL (NOVOS ALGORITMOS) ---
+    // =========================================================================
+    // --- ESTRATÉGIA 1: POR PERFIL (SEM SALA - SISTEMA DECIDE A SALA) ---
+    // =========================================================================
 
     /**
-     * ALGORITMO 1: Reserva assentos Dev/Design juntos (Proximidade Euclidiana)
-     * POST http://localhost:5173/reservas/por-perfil/juntos/sala/{idSala}
+     * ALGORITMO 1 (SEM SALA): Reserva assentos de 3 Perfis juntos (Proximidade Euclidiana)
+     * O sistema varre todas as salas e aloca onde houver espaço conjunto.
+     * POST http://localhost:8080/reservas/por-perfil/juntos
      */
     @PreAuthorize("hasAnyRole('LIDER', 'ADMIN')")
-    @PostMapping("/por-perfil/juntos") // URL limpa, sem o /sala/{idSala}
-    public ResponseEntity<?> adicionarPorPerfilJuntos(
-            @RequestBody ReservaRequestDTO perfilDTO) { // Removido o @PathVariable
+    @PostMapping("/por-perfil/juntos")
+    public ResponseEntity<?> reservar3PerfisJuntosSemSala(
+            @RequestBody ReservaRequestDTO perfilDTO) {
         try {
-            // Agora chama o service passando apenas o DTO
             List<ReservaDTO> reservas = reservaService.adicionarReservaPorPerfilJuntos(perfilDTO);
             return ResponseEntity.status(HttpStatus.CREATED).body(reservas);
         } catch (RuntimeException e) {
             return ResponseEntity.badRequest().body(e.getMessage());
         }
     }
+
     /**
-     * ALGORITMO 2: Reserva assentos Dev/Design separados (Estratégia de Salto)
-     * POST http://localhost:5173/reservas/por-perfil/separados/sala/{idSala}?salto=2
+     * ALGORITMO 2 (SEM SALA): Reserva assentos de 3 Perfis separados (Estratégia de Salto)
+     * O sistema varre todas as salas aplicando o salto de cadeiras onde for viável.
+     * POST http://localhost:8080/reservas/por-perfil/separados?salto=2
      */
     @PreAuthorize("hasAnyRole('LIDER', 'ADMIN')")
-    @PostMapping("/por-perfil/separados") // URL limpa sem a sala
-    public ResponseEntity<?> adicionarPorPerfilSeparados(
+    @PostMapping("/por-perfil/separados")
+    public ResponseEntity<?> reservar3PerfisSeparadosSemSala(
             @RequestParam(defaultValue = "1") int salto,
             @RequestBody ReservaRequestDTO perfilDTO) {
         try {
-            // Chama o service atualizado sem passar o idSala fixo
             List<ReservaDTO> reservas = reservaService.adicionarReservaPorPerfilSeparados(perfilDTO, salto);
             return ResponseEntity.status(HttpStatus.CREATED).body(reservas);
         } catch (RuntimeException e) {
@@ -61,12 +64,54 @@ public class ReservaController {
         }
     }
 
+    // =========================================================================
+    // --- ESTRATÉGIA 2: POR PERFIL (COM SALA FIXA - USUÁRIO ESCOLHEU A SALA) ---
+    // =========================================================================
 
     /**
-     * CONSULTA SALAS: Algoritmo Juntos
+     * ALGORITMO 1 (COM SALA): Reserva assentos de 3 Perfis juntos dentro de uma sala fixa
+     * POST http://localhost:8080/reservas/por-perfil/juntos/sala/{idSala}
+     */
+    @PreAuthorize("hasAnyRole('LIDER', 'ADMIN')")
+    @PostMapping("/por-perfil/juntos/sala/{idSala}")
+    public ResponseEntity<?> reservar3PerfisJuntosPorSala(
+            @PathVariable Long idSala,
+            @RequestBody ReservaRequestDTO perfilDTO) {
+        try {
+            List<ReservaDTO> reservas = reservaService.adicionarReservaPorPerfilJuntosNaSala(perfilDTO, idSala);
+            return ResponseEntity.status(HttpStatus.CREATED).body(reservas);
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
+    }
+
+    /**
+     * ALGORITMO 2 (COM SALA): Reserva assentos de 3 Perfis separados (Salto) dentro de uma sala fixa
+     * POST http://localhost:8080/reservas/por-perfil/separados/sala/{idSala}?salto=2
+     */
+    @PreAuthorize("hasAnyRole('LIDER', 'ADMIN')")
+    @PostMapping("/por-perfil/separados/sala/{idSala}")
+    public ResponseEntity<?> reservar3PerfisSeparadosPorSala(
+            @PathVariable Long idSala,
+            @RequestParam(defaultValue = "1") int salto,
+            @RequestBody ReservaRequestDTO perfilDTO) {
+        try {
+            List<ReservaDTO> reservas = reservaService.adicionarReservaPorPerfilSeparadosNaSala(perfilDTO, salto, idSala);
+            return ResponseEntity.status(HttpStatus.CREATED).body(reservas);
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
+    }
+
+    // =========================================================================
+    // --- MÉTODOS DE CONSULTA DE DISPONIBILIDADE DE SALAS ---
+    // =========================================================================
+
+    /**
+     * CONSULTA SALAS: Retorna salas com suporte geométrico próximo para os 3 perfis
      * POST http://localhost:8080/reservas/por-perfil/juntos/buscar-salas
      */
-    @PreAuthorize("hasAnyRole('LIDER', 'ADMIN', 'USER')") // Liberado para USER consultar também, se quiser
+    @PreAuthorize("hasAnyRole('LIDER', 'ADMIN', 'USER')")
     @PostMapping("/por-perfil/juntos/buscar-salas")
     public ResponseEntity<List<EntSala>> buscarSalasPorPerfilJuntos(
             @RequestBody ReservaRequestDTO perfilDTO) {
@@ -75,7 +120,7 @@ public class ReservaController {
     }
 
     /**
-     * CONSULTA SALAS: Algoritmo Separados (Salto)
+     * CONSULTA SALAS: Retorna salas com suporte ao espaçamento por Salto para os 3 perfis
      * POST http://localhost:8080/reservas/por-perfil/separados/buscar-salas
      */
     @PreAuthorize("hasAnyRole('LIDER', 'ADMIN', 'USER')")
@@ -86,7 +131,10 @@ public class ReservaController {
         List<EntSala> salas = reservaService.consultarSalasDisponiveisSeparados(perfilDTO, salto);
         return ResponseEntity.ok(salas);
     }
-    // --- MÉTODOS CRUD BÁSICOS ---
+
+    // =========================================================================
+    // --- MÉTODOS CRUD BÁSICOS E ORIGINAIS ---
+    // =========================================================================
 
     @PostMapping
     public ResponseEntity<?> adicionar(@RequestBody ReservaDTO reservaDTO) {
@@ -121,8 +169,6 @@ public class ReservaController {
     public ResponseEntity<ReservaDTO> deletar(@PathVariable Long id) {
         return ResponseEntity.ok(reservaService.deletarReserva(id));
     }
-
-    // --- MÉTODOS DE BUSCA (FILTROS ORIGINAIS) ---
 
     @GetMapping("/sala/{idsala}")
     public ResponseEntity<List<ReservaDTO>> buscarPorSala(@PathVariable Long idsala) {
@@ -159,7 +205,6 @@ public class ReservaController {
         return ResponseEntity.ok(reservas);
     }
 
-    // --- CORREÇÃO DO MÉTODO VALIDAR-VAGA ---
     @GetMapping("/validar-vaga")
     public ResponseEntity<?> validarVaga(
             @RequestParam Long idsala,

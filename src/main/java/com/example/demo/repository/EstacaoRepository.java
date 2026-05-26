@@ -31,4 +31,22 @@ public interface EstacaoRepository extends JpaRepository<EntEstacao, Long> {
             @Param("dataInicio") LocalDate dataInicio,
             @Param("dataFim") LocalDate dataFim
     );
+
+    /**
+     * Busca todas as estações livres de um determinado perfil em uma sala específica.
+     */
+    @Query(value = "SELECT e.* FROM estacao e " +
+            "WHERE e.idsala = :idsala " +
+            "AND LOWER(e.descricao) = LOWER(:perfil) " +
+            "AND e.idestacao NOT IN (" +
+            "    SELECT exr.idestacao FROM estacao_x_reserva exr " +
+            "    JOIN reserva r ON exr.idreserva = r.idreserva " +
+            "    WHERE r.datainicial <= :dataFim AND r.datafinal >= :dataInicio" +
+            ")", nativeQuery = true)
+    List<EntEstacao> buscarEstacoesLivresPorPerfilESala(
+            @Param("idsala") Long idsala,
+            @Param("perfil") String perfil,
+            @Param("dataInicio") LocalDate dataInicio,
+            @Param("dataFim") LocalDate dataFim
+    );
 }

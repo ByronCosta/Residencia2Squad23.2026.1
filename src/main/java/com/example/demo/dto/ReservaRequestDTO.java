@@ -8,21 +8,50 @@ public class ReservaRequestDTO {
     private LocalDateTime dataFim;
     private Long qtdDev;
     private Long qtdDesign;
-    private Long idUsuario; // ID do profissional que está fazendo a reserva
+    private Long qtdSimples; // Alterado para Long para padronizar com os outros
+    private Long idUsuario;  // ID do profissional que está fazendo a reserva
 
-    // Getters e Setters (ou use a anotação @Data do Lombok)
-    public LocalDateTime getDataInicio() { return dataInicio; }
-    public void setDataInicio(LocalDateTime dataInicio) { this.dataInicio = dataInicio; }
+    // --- GETTERS E SETTERS ---
 
-    public LocalDateTime getDataFim() { return dataFim; }
-    public void setDataFim(LocalDateTime dataFim) { this.dataFim = dataFim; }
+    public LocalDateTime getDataInicio() {
+        return dataInicio;
+    }
+    public void setDataInicio(LocalDateTime dataInicio) {
+        this.dataInicio = dataInicio;
+    }
 
-    public Long getQtdDev() { return qtdDev; }
-    public void setQtdDev(Long qtdDev) { this.qtdDev = qtdDev; }
+    public LocalDateTime getDataFim() {
+        return dataFim;
+    }
+    public void setDataFim(LocalDateTime dataFim) {
+        this.dataFim = dataFim;
+    }
 
-    public Long getQtdDesign() { return qtdDesign; }
-    public void setQtdDesign(Long qtdDesign) { this.qtdDesign = qtdDesign; }
+    public Long getQtdDev() {
+        return qtdDev;
+    }
+    public void setQtdDev(Long qtdDev) {
+        this.qtdDev = qtdDev;
+    }
 
-    public Long getIdUsuario() { return idUsuario; }
-    public void setIdUsuario(Long idUsuario) { this.idUsuario = idUsuario; }
+    public Long getQtdDesign() {
+        return qtdDesign;
+    }
+    public void setQtdDesign(Long qtdDesign) {
+        this.qtdDesign = qtdDesign;
+    }
+
+    public Long getQtdSimples() {
+        return qtdSimples;
+    }
+    public void setQtdSimples(Long qtdSimples) {
+        this.qtdSimples = qtdSimples;
+    }
+
+    public Long getIdUsuario() {
+        return idUsuario;
+    }
+    public void setIdUsuario(Long idUsuario) {
+        this.idUsuario = idUsuario;
+    }
 }
