@@ -1,7 +1,13 @@
 package com.example.demo.controller;
 
 import com.example.demo.dto.SalaDTO;
+import com.example.demo.model.EntEquipamento;
+import com.example.demo.model.EntEstacao;
 import com.example.demo.service.SalaService;
+import com.example.demo.repository.EquipamentoRepository;
+import com.example.demo.repository.EstacaoRepository;
+
+import com.fasterxml.jackson.databind.JsonNode;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.*;
 import org.springframework.util.LinkedMultiValueMap;
@@ -19,7 +25,14 @@ public class SalaController {
 
     @Autowired
     private SalaService salaService;
-    private final String FASTAPI_URL = "http://127.0.0.1:8000/analisar";
+
+    @Autowired
+    private EstacaoRepository estacaoRepository;
+
+    @Autowired
+    private EquipamentoRepository equipamentoRepository;
+
+    private final String FASTAPI_URL = "http://0.0.0.0:8000/analisar";//"http://127.0.0.1:8000/analisar"
 
     // Adicionar imagem e integrar com FastAPI
     @PostMapping("/{id}/upload-planta")
@@ -52,17 +65,78 @@ public class SalaController {
             body.add("file", fileAsResource);
             HttpEntity<MultiValueMap<String, Object>> requestEntity = new HttpEntity<>(body, headers);
 
-            ResponseEntity<String> response = restTemplate.postForEntity(
+            ResponseEntity<JsonNode> response = restTemplate.postForEntity(
                     FASTAPI_URL,
                     requestEntity,
-                    String.class
+                    JsonNode.class
             );
 
-            return ResponseEntity.ok(response.getBody());
+            JsonNode estacoesArray = response.getBody();
+
+            if (estacoesArray != null && estacoesArray.isArray()) {
+                for (JsonNode noEstacao : estacoesArray) {
+
+                    int numeroEstacao = noEstacao.get("estacao").asInt();
+                    int coordX = noEstacao.get("coordx").asInt();
+                    int coordY = noEstacao.get("coordy").asInt();
+
+                    // Captura a quantidade dos itens para a regra de negócio da descrição
+                    JsonNode itens = noEstacao.get("itens");
+                    int qtdCadeiras = itens.has("cadeira") ? itens.get("cadeira").asInt() : 0;
+                    int qtdMonitores = itens.has("monitor") ? itens.get("monitor").asInt() : 0;
+
+                    // Regra de Negócio: define a descrição com base nos monitores
+                    String descricaoEstacao;
+                    if (qtdMonitores == 1) {
+                        descricaoEstacao = "dev";
+                    } else if (qtdMonitores >= 2) {
+                        descricaoEstacao = "designer";
+                    } else {
+                        descricaoEstacao = "simples";
+                    }
+
+                    EntEstacao estacao = new EntEstacao();
+                    estacao.setDescricao(descricaoEstacao);
+                    estacao.setCoordx(coordX);
+                    estacao.setCoordy(coordY);
+                    estacao.setIdsala(idSala);
+
+                    // Caso sua entidade EntEstacao possua o campo 'descricao', salvamos o perfil dela aqui:
+                    // estacao.setDescricao(descricaoEstacao);
+
+                    EntEstacao estacaoSalva = estacaoRepository.save(estacao);
+                    Long idEstacaoGerado = estacaoSalva.getIdestacao();
+
+                    // Laço para salvar as cadeiras detectadas
+                    for (int i = 0; i < qtdCadeiras; i++) {
+                        EntEquipamento cadeira = EntEquipamento.builder()
+                                .idestacao(idEstacaoGerado)
+                                .descricao("Cadeira da Estação " + numeroEstacao + " (" + descricaoEstacao + ")")
+                                .estoque(false)
+                                .build();
+                        equipamentoRepository.save(cadeira);
+                    }
+
+                    // Laço para salvar os monitores detectados
+                    for (int i = 0; i < qtdMonitores; i++) {
+                        EntEquipamento monitor = EntEquipamento.builder()
+                                .idestacao(idEstacaoGerado)
+                                .descricao("Monitor da Estação " + numeroEstacao + " (" + descricaoEstacao + ")")
+                                .estoque(false)
+                                .build();
+                        equipamentoRepository.save(monitor);
+                    }
+                }
+            }
+
+            return ResponseEntity.ok(Map.of(
+                    "sucesso", true,
+                    "mensagem", "Planta processada. Estações e equipamentos salvos com sucesso para a sala " + idSala
+            ));
 
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body("Erro ao processar a imagem com a IA: " + e.getMessage());
+                    .body("Erro ao processar a imagem ou salvar no banco: " + e.getMessage());
         }
     }
 
@@ -104,8 +178,8 @@ public class SalaController {
 
     // 5. Buscar por Endereço (Parte do texto)
     @GetMapping("/buscar-endereco")
-    public ResponseEntity<List<SalaDTO>> buscarPorEndereco(@RequestParam String endereco) {
-        return ResponseEntity.ok(salaService.buscarPorEndereco(endereco));
+    public ResponseEntity<List<SalaDTO>> buscarPorEndereco(@RequestParam String address) {
+        return ResponseEntity.ok(salaService.buscarPorEndereco(address));
     }
 
     // 6. Buscar por Endereço e Disponibilidade
@@ -116,7 +190,7 @@ public class SalaController {
         return ResponseEntity.ok(salaService.buscarPorEnderecoEDisponibilidade(endereco, disponivel));
     }
 
-    // 7. Buscar salas pela quantidade mínima de estações Dev e Design (NOVO)
+    // 7. Buscar salas pela quantidade mínima de estações Dev e Design
     @GetMapping("/buscar-por-perfis")
     public ResponseEntity<List<SalaDTO>> buscarPorCapacidadeDePerfis(
             @RequestParam Long qtdDev,
