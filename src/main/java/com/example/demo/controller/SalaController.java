@@ -90,7 +90,7 @@ public class SalaController {
                     if (qtdMonitores == 1) {
                         descricaoEstacao = "dev";
                     } else if (qtdMonitores >= 2) {
-                        descricaoEstacao = "designer";
+                        descricaoEstacao = "design";
                     } else {
                         descricaoEstacao = "simples";
                     }

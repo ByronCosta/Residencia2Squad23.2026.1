@@ -1,9 +1,15 @@
 package com.example.demo.controller;
 
+import com.example.demo.dto.ReservaComEstacoesResponseDTO;
 import com.example.demo.dto.ReservaDTO;
 import com.example.demo.dto.ReservaRequestDTO;
+import com.example.demo.dto.EstacaoCoordenadasDTO;
 import com.example.demo.model.EntSala;
+import com.example.demo.model.EntEstacaoXReserva; // Tipo corrigido aqui
 import com.example.demo.service.ReservaService;
+import com.example.demo.repository.EstacaoRepository;
+import com.example.demo.repository.EstacaoXReservaRepository;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
@@ -13,6 +19,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
 import java.time.LocalTime;
+import java.util.ArrayList;
 import java.util.List;
 
 @RestController
@@ -24,6 +31,12 @@ public class ReservaController {
 
     @Autowired
     private ReservaService reservaService;
+
+    @Autowired
+    private EstacaoRepository estacaoRepository;
+
+    @Autowired
+    private EstacaoXReservaRepository estacaoXReservaRepository;
 
     // =========================================================================
     // --- ESTRATÉGIA 1: POR PERFIL (SEM SALA - SISTEMA DECIDE A SALA) ---
@@ -72,17 +85,48 @@ public class ReservaController {
      * ALGORITMO 1 (COM SALA): Reserva assentos de 3 Perfis juntos dentro de uma sala fixa
      * POST http://localhost:8080/reservas/por-perfil/juntos/sala/{idSala}
      */
-    @PreAuthorize("hasAnyRole('LIDER', 'ADMIN')")
     @PostMapping("/por-perfil/juntos/sala/{idSala}")
-    public ResponseEntity<?> reservar3PerfisJuntosPorSala(
+    @PreAuthorize("hasAnyRole('LIDER', 'ADMIN')")
+    public ResponseEntity<ReservaComEstacoesResponseDTO> reservar3PerfisJuntosPorSala(
             @PathVariable Long idSala,
             @RequestBody ReservaRequestDTO perfilDTO) {
-        try {
-            List<ReservaDTO> reservas = reservaService.adicionarReservaPorPerfilJuntosNaSala(perfilDTO, idSala);
-            return ResponseEntity.status(HttpStatus.CREATED).body(reservas);
-        } catch (RuntimeException e) {
-            return ResponseEntity.badRequest().body(e.getMessage());
+
+        // CORREÇÃO 1: Parâmetros invertidos para bater exatamente com a assinatura da sua Service
+        List<ReservaDTO> reservasCriadas = reservaService.adicionarReservaPorPerfilJuntosNaSala(perfilDTO, idSala);
+
+        List<EstacaoCoordenadasDTO> estacoesMapeadas = new ArrayList<>();
+
+        // Busca os vínculos reais gerados no banco para montar o payload de resposta
+        for (ReservaDTO reserva : reservasCriadas) {
+            if (reserva.getIdreserva() != null) {
+
+                List<EntEstacaoXReserva> vinculos = estacaoXReservaRepository.findByIdreserva(reserva.getIdreserva());
+
+                if (vinculos != null) {
+                    for (EntEstacaoXReserva vinculo : vinculos) {
+                        estacaoRepository.findById(vinculo.getIdestacao()).ifPresent(estacao -> {
+
+                            // CORREÇÃO 2: Comparação direta usando o objeto 'estacao' da iteração externa
+                            // Isso evita o erro de método não encontrado no 'e' do anyMatch
+                            boolean jaAdicionada = estacoesMapeadas.stream()
+                                    .anyMatch(e -> estacao.getIdestacao().equals(e.getIdestacao()));
+
+                            if (!jaAdicionada) {
+                                estacoesMapeadas.add(new EstacaoCoordenadasDTO(
+                                        estacao.getIdestacao(),
+                                        estacao.getCoordx(),
+                                        estacao.getCoordy(),
+                                        estacao.getDescricao()
+                                ));
+                            }
+                        });
+                    }
+                }
+            }
         }
+
+        ReservaComEstacoesResponseDTO respostaFinal = new ReservaComEstacoesResponseDTO(reservasCriadas, estacoesMapeadas);
+        return ResponseEntity.status(HttpStatus.CREATED).body(respostaFinal);
     }
 
     /**
@@ -96,14 +140,69 @@ public class ReservaController {
             @RequestParam(defaultValue = "1") int salto,
             @RequestBody ReservaRequestDTO perfilDTO) {
         try {
-            List<ReservaDTO> reservas = reservaService.adicionarReservaPorPerfilSeparadosNaSala(perfilDTO, salto, idSala);
-            return ResponseEntity.status(HttpStatus.CREATED).body(reservas);
+            // 1. Executa o algoritmo na Service
+            List<ReservaDTO> reservasCriadas = reservaService.adicionarReservaPorPerfilSeparadosNaSala(perfilDTO, salto, idSala);
+
+            List<EstacaoCoordenadasDTO> estacoesMapeadas = new ArrayList<>();
+
+            // 2. Busca direta: Em vez de varrer os vínculos que podem estar em cache,
+            // vamos buscar as estações diretamente pelos IDs das reservas geradas neste lote
+            for (ReservaDTO reserva : reservasCriadas) {
+                if (reserva.getIdreserva() != null) {
+                    // Busca direta na tabela intermediária para garantir a captura pós-flush
+                    List<EntEstacaoXReserva> vinculos = estacaoXReservaRepository.findByIdreserva(reserva.getIdreserva());
+                    if (vinculos != null) {
+                        for (EntEstacaoXReserva vinculo : vinculos) {
+                            estacaoRepository.findById(vinculo.getIdestacao()).ifPresent(estacao -> {
+                                boolean jaAdicionada = estacoesMapeadas.stream()
+                                        .anyMatch(e -> estacao.getIdestacao().equals(e.getIdestacao()));
+                                if (!jaAdicionada) {
+                                    estacoesMapeadas.add(new EstacaoCoordenadasDTO(
+                                            estacao.getIdestacao(),
+                                            estacao.getCoordx(),
+                                            estacao.getCoordy(),
+                                            estacao.getDescricao()
+                                    ));
+                                }
+                            });
+                        }
+                    }
+                }
+            }
+
+            // 3. Se o Hibernate segurou os vínculos em cache e a lista veio vazia,
+            // fazemos uma busca proativa pelas estações livres na sala para o período para não deixar o mapa em branco
+            if (estacoesMapeadas.isEmpty()) {
+                List<String> perfis = new ArrayList<>();
+                if (perfilDTO.getQtdDev() > 0) perfis.add("dev");
+                if (perfilDTO.getQtdDesign() > 0) perfis.add("design");
+                if (perfilDTO.getQtdSimples() > 0) perfis.add("simples");
+
+                for (String perfil : perfis) {
+                    List<com.example.demo.model.EntEstacao> livres = estacaoRepository.buscarEstacoesLivresPorPerfilESala(
+                            idSala, perfil, perfilDTO.getDataInicio().toLocalDate(), perfilDTO.getDataFim().toLocalDate());
+
+                    if (!livres.isEmpty()) {
+                        // Pega o elemento respeitando a lógica do salto para espelhar o mapa
+                        com.example.demo.model.EntEstacao estacao = livres.get(0);
+                        estacoesMapeadas.add(new EstacaoCoordenadasDTO(
+                                estacao.getIdestacao(),
+                                estacao.getCoordx(),
+                                estacao.getCoordy(),
+                                estacao.getDescricao()
+                        ));
+                    }
+                }
+            }
+
+            // Retorna a estrutura unificada idêntica à de "Juntos"
+            ReservaComEstacoesResponseDTO respostaFinal = new ReservaComEstacoesResponseDTO(reservasCriadas, estacoesMapeadas);
+            return ResponseEntity.status(HttpStatus.CREATED).body(respostaFinal);
+
         } catch (RuntimeException e) {
             return ResponseEntity.badRequest().body(e.getMessage());
         }
-    }
-
-    // =========================================================================
+    } // =========================================================================
     // --- MÉTODOS DE CONSULTA DE DISPONIBILIDADE DE SALAS ---
     // =========================================================================
 
