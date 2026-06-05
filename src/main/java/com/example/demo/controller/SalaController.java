@@ -3,6 +3,8 @@ package com.example.demo.controller;
 import com.example.demo.dto.SalaDTO;
 import com.example.demo.model.EntEquipamento;
 import com.example.demo.model.EntEstacao;
+import com.example.demo.model.EntSala;
+import com.example.demo.repository.SalaRepository;
 import com.example.demo.service.SalaService;
 import com.example.demo.repository.EquipamentoRepository;
 import com.example.demo.repository.EstacaoRepository;
@@ -18,6 +20,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 @RestController
 @RequestMapping("/salas")
@@ -25,6 +28,9 @@ public class SalaController {
 
     @Autowired
     private SalaService salaService;
+
+    @Autowired
+    private SalaRepository salaRepository;
 
     @Autowired
     private EstacaoRepository estacaoRepository;
@@ -80,12 +86,10 @@ public class SalaController {
                     int coordX = noEstacao.get("coordx").asInt();
                     int coordY = noEstacao.get("coordy").asInt();
 
-                    // Captura a quantidade dos itens para a regra de negócio da descrição
                     JsonNode itens = noEstacao.get("itens");
                     int qtdCadeiras = itens.has("cadeira") ? itens.get("cadeira").asInt() : 0;
                     int qtdMonitores = itens.has("monitor") ? itens.get("monitor").asInt() : 0;
 
-                    // Regra de Negócio: define a descrição com base nos monitores
                     String descricaoEstacao;
                     if (qtdMonitores == 1) {
                         descricaoEstacao = "dev";
@@ -101,13 +105,9 @@ public class SalaController {
                     estacao.setCoordy(coordY);
                     estacao.setIdsala(idSala);
 
-                    // Caso sua entidade EntEstacao possua o campo 'descricao', salvamos o perfil dela aqui:
-                    // estacao.setDescricao(descricaoEstacao);
-
                     EntEstacao estacaoSalva = estacaoRepository.save(estacao);
                     Long idEstacaoGerado = estacaoSalva.getIdestacao();
 
-                    // Laço para salvar as cadeiras detectadas
                     for (int i = 0; i < qtdCadeiras; i++) {
                         EntEquipamento cadeira = EntEquipamento.builder()
                                 .idestacao(idEstacaoGerado)
@@ -117,7 +117,6 @@ public class SalaController {
                         equipamentoRepository.save(cadeira);
                     }
 
-                    // Laço para salvar os monitores detectados
                     for (int i = 0; i < qtdMonitores; i++) {
                         EntEquipamento monitor = EntEquipamento.builder()
                                 .idestacao(idEstacaoGerado)
@@ -127,11 +126,30 @@ public class SalaController {
                         equipamentoRepository.save(monitor);
                     }
                 }
+
+                // --- REGRA DE NEGÓCIO ADICIONADA AQUI ---
+                // 1. Conta o total de estações salvas que possuem o idsala correspondente
+                int totalEstacoes = estacaoRepository.countByIdsala(idSala);
+
+                // 2. Busca a sala correspondente no banco de dados
+                Optional<EntSala> salaOptional = salaRepository.findById(idSala);
+
+                if (salaOptional.isPresent()) {
+                    EntSala sala = salaOptional.get();
+                    // 3. Atualiza a lotação máxima com o total de estações
+                    sala.setLot_max(totalEstacoes);
+                    // 4. Salva a sala atualizada
+                    salaRepository.save(sala);
+                } else {
+                    return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                            .body("Estações salvas, mas a sala com ID " + idSala + " não foi encontrada para atualizar a lotação.");
+                }
+                // ----------------------------------------
             }
 
             return ResponseEntity.ok(Map.of(
                     "sucesso", true,
-                    "mensagem", "Planta processada. Estações e equipamentos salvos com sucesso para a sala " + idSala
+                    "mensagem", "Planta processada. Estações e equipamentos salvos. Lotação máxima da sala " + idSala + " atualizada para " + estacaoRepository.countByIdsala(idSala)
             ));
 
         } catch (Exception e) {
@@ -139,7 +157,6 @@ public class SalaController {
                     .body("Erro ao processar a imagem ou salvar no banco: " + e.getMessage());
         }
     }
-
     @PostMapping("/importar")
     public ResponseEntity<?> importarDadosIA(@RequestBody Map<String, Object> dados) {
         System.out.println("Dados da IA recebidos: " + dados);

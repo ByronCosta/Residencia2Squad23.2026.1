@@ -12,6 +12,9 @@ import java.util.List;
 @Repository
 public interface EstacaoRepository extends JpaRepository<EntEstacao, Long> {
 
+
+    int countByIdsala(Long idsala);
+
     @Query(value = "SELECT * FROM estacao WHERE idsala = :idsala", nativeQuery = true)
     List<EntEstacao> buscarDisponiveisPorSala(@Param("idsala") Long idsala);
 
