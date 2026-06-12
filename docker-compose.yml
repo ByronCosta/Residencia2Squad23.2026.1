@@ -1,0 +1,59 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: residencia_db
+    restart: always
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - residencia_net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  java-api:
+    build:
+      context: ./java-api
+      dockerfile: ../java-docker/Dockerfile
+    container_name: residencia_java
+    restart: always
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB}
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
+      JWT_SECRET: ${JWT_SECRET}
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - residencia_net
+
+  python-api:
+    build:
+      context: ./python-api
+      dockerfile: ../python-docker/Dockerfile
+    container_name: residencia_python
+    restart: always
+    environment:
+      JAVA_API_URL: http://java-api:8080/salas/importar
+    ports:
+      - "8000:8000"
+    depends_on:
+      - java-api
+    networks:
+      - residencia_net
+
+volumes:
+  postgres_data:
+
+networks:
+  residencia_net:
+    driver: bridge
