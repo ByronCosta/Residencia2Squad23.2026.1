@@ -2,6 +2,7 @@ package com.example.demo.service;
 
 import com.example.demo.dto.ReservaDTO;
 import com.example.demo.dto.ReservaRequestDTO;
+import com.example.demo.dto.SalaComEstacoesDTO;
 import com.example.demo.model.EntEstacaoXReserva;
 import com.example.demo.model.EntReserva;
 import com.example.demo.model.EntEstacao;
@@ -133,12 +134,11 @@ public class ReservaService {
     }
 
     // --- CONSULTAS MULTI-PERFIL ---
-
     /**
-     * CONSULTA: Retorna as salas com capacidade conjunta para os 3 perfis no modo proximidade.
+     * CONSULTA: Retorna as salas com capacidade conjunta E as respectivas estações selecionadas.
      */
     @Transactional(readOnly = true)
-    public List<EntSala> consultarSalasDisponiveisJuntos(ReservaRequestDTO perfilDTO) {
+    public List<SalaComEstacoesDTO> consultarSalasDisponiveisJuntos(ReservaRequestDTO perfilDTO) {
         List<EntEstacao> devsLivres = estacaoRepository.buscarEstacoesLivresPorPerfilSemSala(
                 "dev", perfilDTO.getDataInicio().toLocalDate(), perfilDTO.getDataFim().toLocalDate());
 
@@ -155,9 +155,8 @@ public class ReservaService {
         }
 
         Set<Long> idsSalasValidas = new HashSet<>();
-        List<EntSala> salasDisponiveis = new ArrayList<>();
+        List<SalaComEstacoesDTO> salasDisponiveis = new ArrayList<>();
 
-        // Une todas as estações para mapear as salas candidatas que possuem pelo menos alguma infraestrutura básica
         List<EntEstacao> todasAsLivres = new ArrayList<>();
         todasAsLivres.addAll(devsLivres);
         todasAsLivres.addAll(designsLivres);
@@ -176,12 +175,24 @@ public class ReservaService {
                     designsDaSala.size() >= perfilDTO.getQtdDesign().intValue() &&
                     simplesDaSala.size() >= perfilDTO.getQtdSimples().intValue()) {
                 try {
-                    buscarEstacoesJuntas(ref, devsDaSala, perfilDTO.getQtdDev().intValue());
-                    buscarEstacoesJuntas(ref, designsDaSala, perfilDTO.getQtdDesign().intValue());
-                    buscarEstacoesJuntas(ref, simplesDaSala, perfilDTO.getQtdSimples().intValue());
+                    // Captura as sublistas exatas validadas pelo algoritmo geométrico/proximidade
+                    List<EntEstacao> devsEscolhidos = buscarEstacoesJuntas(ref, devsDaSala, perfilDTO.getQtdDev().intValue());
+                    List<EntEstacao> designsEscolhidos = buscarEstacoesJuntas(ref, designsDaSala, perfilDTO.getQtdDesign().intValue());
+                    List<EntEstacao> simplesEscolhidos = buscarEstacoesJuntas(ref, simplesDaSala, perfilDTO.getQtdSimples().intValue());
+
+                    // Une todas as estações validadas desta sala específica
+                    List<EntEstacao> todasEstacoesDaSala = new ArrayList<>();
+                    todasEstacoesDaSala.addAll(devsEscolhidos);
+                    todasEstacoesDaSala.addAll(designsEscolhidos);
+                    todasEstacoesDaSala.addAll(simplesEscolhidos);
 
                     idsSalasValidas.add(idSalaAtual);
-                    salaRepository.findById(idSalaAtual).ifPresent(salasDisponiveis::add);
+
+                    // Busca a entidade Sala e monta o DTO com suas estações
+                    salaRepository.findById(idSalaAtual).ifPresent(sala -> {
+                        salasDisponiveis.add(new SalaComEstacoesDTO(sala, todasEstacoesDaSala));
+                    });
+
                 } catch (Exception e) {
                     // Geometria inválida para essa âncora, passa para o próximo loop
                 }
@@ -189,7 +200,6 @@ public class ReservaService {
         }
         return salasDisponiveis;
     }
-
     /**
      * CONSULTA: Retorna as salas com capacidade para os 3 perfis aplicando regras de salto.
      */

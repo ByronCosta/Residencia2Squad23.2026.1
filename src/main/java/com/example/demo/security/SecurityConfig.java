@@ -52,7 +52,10 @@ public class SecurityConfig {
                                 "/saml2/**",
                                 "/favicon.ico",
                                 "/error",
-                                "/salas/**" // Libera os endpoints de salas para a integração
+                                "/salas/**", // Libera os endpoints de salas para a integração
+                                "/v3/api-docs/**",
+                                "/swagger-ui/**",
+                                "/swagger-ui.html"
                         ).permitAll()
                         .anyRequest().authenticated()
                 )

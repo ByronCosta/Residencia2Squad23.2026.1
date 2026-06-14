@@ -1,9 +1,6 @@
 package com.example.demo.controller;
 
-import com.example.demo.dto.ReservaComEstacoesResponseDTO;
-import com.example.demo.dto.ReservaDTO;
-import com.example.demo.dto.ReservaRequestDTO;
-import com.example.demo.dto.EstacaoCoordenadasDTO;
+import com.example.demo.dto.*;
 import com.example.demo.model.EntSala;
 import com.example.demo.model.EntEstacaoXReserva; // Tipo corrigido aqui
 import com.example.demo.service.ReservaService;
@@ -212,9 +209,9 @@ public class ReservaController {
      */
     @PreAuthorize("hasAnyRole('LIDER', 'ADMIN', 'USER')")
     @PostMapping("/por-perfil/juntos/buscar-salas")
-    public ResponseEntity<List<EntSala>> buscarSalasPorPerfilJuntos(
+    public ResponseEntity<List<SalaComEstacoesDTO>> buscarSalasPorPerfilJuntos(
             @RequestBody ReservaRequestDTO perfilDTO) {
-        List<EntSala> salas = reservaService.consultarSalasDisponiveisJuntos(perfilDTO);
+        List<SalaComEstacoesDTO> salas = reservaService.consultarSalasDisponiveisJuntos(perfilDTO);
         return ResponseEntity.ok(salas);
     }
 
