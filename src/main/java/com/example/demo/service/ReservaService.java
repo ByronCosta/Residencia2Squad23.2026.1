@@ -3,6 +3,7 @@ package com.example.demo.service;
 import com.example.demo.dto.ReservaDTO;
 import com.example.demo.dto.ReservaRequestDTO;
 import com.example.demo.dto.SalaComEstacoesDTO;
+import com.example.demo.dto.SalasEEstacoesDisponiveisDTO;
 import com.example.demo.model.EntEstacaoXReserva;
 import com.example.demo.model.EntReserva;
 import com.example.demo.model.EntEstacao;
@@ -199,6 +200,46 @@ public class ReservaService {
             }
         }
         return salasDisponiveis;
+    }
+
+    /**
+     * CONSULTA: Retorna todas as salas e suas respectivas estações que estão 100% livres no período.
+     */
+    @Transactional(readOnly = true)
+    public List<SalasEEstacoesDisponiveisDTO> consultarTodasSalasEEstacoesLivres(ReservaRequestDTO perfilDTO) {
+        // 1. Busca todas as estações de todos os perfis que estão livres no período
+        List<EntEstacao> devsLivres = estacaoRepository.buscarEstacoesLivresPorPerfilSemSala(
+                "dev", perfilDTO.getDataInicio().toLocalDate(), perfilDTO.getDataFim().toLocalDate());
+
+        List<EntEstacao> designsLivres = estacaoRepository.buscarEstacoesLivresPorPerfilSemSala(
+                "design", perfilDTO.getDataInicio().toLocalDate(), perfilDTO.getDataFim().toLocalDate());
+
+        List<EntEstacao> simplesLivres = estacaoRepository.buscarEstacoesLivresPorPerfilSemSala(
+                "simples", perfilDTO.getDataInicio().toLocalDate(), perfilDTO.getDataFim().toLocalDate());
+
+        // 2. Une todas as estações encontradas em uma única lista global
+        List<EntEstacao> todasAsLivres = new ArrayList<>();
+        todasAsLivres.addAll(devsLivres);
+        todasAsLivres.addAll(designsLivres);
+        todasAsLivres.addAll(simplesLivres);
+
+        // 3. Agrupa as estações pelo ID da Sala usando Stream Map (Chave: IdSala, Valor: Lista de Estações)
+        Map<Long, List<EntEstacao>> estacoesAgrupadasPorSala = todasAsLivres.stream()
+                .collect(Collectors.groupingBy(EntEstacao::getIdsala));
+
+        List<SalasEEstacoesDisponiveisDTO> resultado = new ArrayList<>();
+
+        // 4. Para cada grupo mapeado, busca a Sala no banco e monta o DTO de retorno
+        for (Map.Entry<Long, List<EntEstacao>> entry : estacoesAgrupadasPorSala.entrySet()) {
+            Long idSala = entry.getKey();
+            List<EntEstacao> estacoesDaSala = entry.getValue();
+
+            salaRepository.findById(idSala).ifPresent(sala -> {
+                resultado.add(new SalasEEstacoesDisponiveisDTO(sala, estacoesDaSala));
+            });
+        }
+
+        return resultado;
     }
     /**
      * CONSULTA: Retorna as salas com capacidade para os 3 perfis aplicando regras de salto.

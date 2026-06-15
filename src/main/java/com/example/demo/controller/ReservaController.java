@@ -203,6 +203,14 @@ public class ReservaController {
     // --- MÉTODOS DE CONSULTA DE DISPONIBILIDADE DE SALAS ---
     // =========================================================================
 
+
+    @PreAuthorize("hasAnyRole('LIDER', 'ADMIN', 'USER')")
+    @PostMapping("/todas-disponiveis")
+    public ResponseEntity<List<SalasEEstacoesDisponiveisDTO>> buscarTodasEstacoesESalasDisponiveis(
+            @RequestBody ReservaRequestDTO perfilDTO) {
+        List<SalasEEstacoesDisponiveisDTO> resultado = reservaService.consultarTodasSalasEEstacoesLivres(perfilDTO);
+        return ResponseEntity.ok(resultado);
+    }
     /**
      * CONSULTA SALAS: Retorna salas com suporte geométrico próximo para os 3 perfis
      * POST http://localhost:8080/reservas/por-perfil/juntos/buscar-salas
