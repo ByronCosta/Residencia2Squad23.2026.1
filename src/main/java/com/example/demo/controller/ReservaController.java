@@ -229,13 +229,12 @@ public class ReservaController {
      */
     @PreAuthorize("hasAnyRole('LIDER', 'ADMIN', 'USER')")
     @PostMapping("/por-perfil/separados/buscar-salas")
-    public ResponseEntity<List<EntSala>> buscarSalasPorPerfilSeparados(
+    public ResponseEntity<List<SalaComEstacoesDTO>> buscarSalasPorPerfilSeparados(
             @RequestParam(defaultValue = "1") int salto,
             @RequestBody ReservaRequestDTO perfilDTO) {
-        List<EntSala> salas = reservaService.consultarSalasDisponiveisSeparados(perfilDTO, salto);
+        List<SalaComEstacoesDTO> salas = reservaService.consultarSalasDisponiveisSeparados(perfilDTO, salto);
         return ResponseEntity.ok(salas);
     }
-
     // =========================================================================
     // --- MÉTODOS CRUD BÁSICOS E ORIGINAIS ---
     // =========================================================================
