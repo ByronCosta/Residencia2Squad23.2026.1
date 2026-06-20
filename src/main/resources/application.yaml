@@ -45,7 +45,7 @@ application:
 # Configuração da chave do Gemini (movida do código para o yaml)
 gemini:
   api:
-    key: AQ.Ab8RN6LFWkMlLJibHTE1adoaGMuRamRSEI9VpY7GZTLnYC7s8A
+    key: AQXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
 
 logging:
   level:

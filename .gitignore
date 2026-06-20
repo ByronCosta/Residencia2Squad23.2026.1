@@ -31,3 +31,12 @@ build/
 
 ### VS Code ###
 .vscode/
+
+# Configurações sensíveis
+src/main/resources/application.yaml
+
+# Credenciais/certificados
+src/main/resources/credentials/
+src/main/resources/*.key
+src/main/resources/*.cer
+src/main/resources/*.crt
