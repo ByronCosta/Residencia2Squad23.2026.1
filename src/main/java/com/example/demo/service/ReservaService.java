@@ -17,6 +17,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
+import java.time.LocalTime;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -37,6 +39,27 @@ public class ReservaService {
 
     @Autowired
     private UserRepository userRepository;
+
+    // --- MÉTODO REUTILIZÁVEL DE VALIDAÇÃO CRONOLÓGICA ---
+
+    private void validarDatasEHorarios(LocalDate dataInicial, LocalDate dataFinal, LocalTime horaInicial, LocalTime horaFinal) {
+        LocalDate hoje = LocalDate.now();
+
+        // 1. Impede reservas em datas retroativas
+        if (dataInicial.isBefore(hoje)) {
+            throw new RuntimeException("Não é permitido realizar operações para datas anteriores à data atual.");
+        }
+
+        // 2. Impede que a data inicial seja maior que a data final
+        if (dataInicial.isAfter(dataFinal)) {
+            throw new RuntimeException("A data inicial não pode ser maior que a data final.");
+        }
+
+        // 3. Se for no mesmo dia, garante que o horário inicial não seja maior ou igual ao final
+        if (dataInicial.isEqual(dataFinal) && !horaInicial.isBefore(horaFinal)) {
+            throw new RuntimeException("O horário inicial deve ser menor que o horário final para reservas no mesmo dia.");
+        }
+    }
 
     // --- ALGORITMOS DE BUSCA DE ESTAÇÕES ---
 
@@ -63,12 +86,11 @@ public class ReservaService {
 
     // --- MÉTODOS: POR PERFIL MULTI-CRITÉRIO (JUNTOS E SEPARADOS) ---
 
-    /**
-     * ALGORITMO 1: Busca estações livres por perfil (Dev/Design/Simples) no sistema todo.
-     * Define dinamicamente uma âncora a partir do primeiro perfil disponível e agrupa o time.
-     */
     @Transactional
     public List<ReservaDTO> adicionarReservaPorPerfilJuntos(ReservaRequestDTO perfilDTO) {
+        validarDatasEHorarios(perfilDTO.getDataInicio().toLocalDate(), perfilDTO.getDataFim().toLocalDate(),
+                perfilDTO.getDataInicio().toLocalTime(), perfilDTO.getDataFim().toLocalTime());
+
         List<EntEstacao> devsLivres = estacaoRepository.buscarEstacoesLivresPorPerfilSemSala(
                 "dev", perfilDTO.getDataInicio().toLocalDate(), perfilDTO.getDataFim().toLocalDate());
 
@@ -98,11 +120,11 @@ public class ReservaService {
         return salvarMultiplasReservas(baseDTO, selecionadas);
     }
 
-    /**
-     * ALGORITMO 2: Busca estações livres por perfil (Dev/Design/Simples) no sistema todo e aplica o salto.
-     */
     @Transactional
     public List<ReservaDTO> adicionarReservaPorPerfilSeparados(ReservaRequestDTO perfilDTO, int salto) {
+        validarDatasEHorarios(perfilDTO.getDataInicio().toLocalDate(), perfilDTO.getDataFim().toLocalDate(),
+                perfilDTO.getDataInicio().toLocalTime(), perfilDTO.getDataFim().toLocalTime());
+
         List<EntEstacao> devsLivres = estacaoRepository.buscarEstacoesLivresPorPerfilSemSala(
                 "dev", perfilDTO.getDataInicio().toLocalDate(), perfilDTO.getDataFim().toLocalDate());
 
@@ -133,11 +155,11 @@ public class ReservaService {
 
     // --- CONSULTAS MULTI-PERFIL ---
 
-    /**
-     * CONSULTA 1: Retorna as salas com capacidade conjunta E as respectivas estações selecionadas por proximidade.
-     */
     @Transactional(readOnly = true)
     public List<SalaComEstacoesDTO> consultarSalasDisponiveisJuntos(ReservaRequestDTO perfilDTO) {
+        validarDatasEHorarios(perfilDTO.getDataInicio().toLocalDate(), perfilDTO.getDataFim().toLocalDate(),
+                perfilDTO.getDataInicio().toLocalTime(), perfilDTO.getDataFim().toLocalTime());
+
         List<EntEstacao> devsLivres = estacaoRepository.buscarEstacoesLivresPorPerfilSemSala(
                 "dev", perfilDTO.getDataInicio().toLocalDate(), perfilDTO.getDataFim().toLocalDate());
 
@@ -190,19 +212,18 @@ public class ReservaService {
                     });
 
                 } catch (Exception e) {
-                    // Geometria inválida para essa âncora
+                    // Geometria inválida
                 }
             }
         }
         return salasDisponiveis;
     }
 
-    /**
-     * CONSULTA 2 (CORRIGIDO E UNIFICADO): Retorna a estrutura SalaComEstacoesDTO agrupando por proximidade,
-     * atendendo ao fluxo do endpoint de separados.
-     */
     @Transactional(readOnly = true)
     public List<SalaComEstacoesDTO> consultarSalasDisponiveisSeparados(ReservaRequestDTO perfilDTO, int salto) {
+        validarDatasEHorarios(perfilDTO.getDataInicio().toLocalDate(), perfilDTO.getDataFim().toLocalDate(),
+                perfilDTO.getDataInicio().toLocalTime(), perfilDTO.getDataFim().toLocalTime());
+
         List<EntEstacao> devsLivres = estacaoRepository.buscarEstacoesLivresPorPerfilSemSala(
                 "dev", perfilDTO.getDataInicio().toLocalDate(), perfilDTO.getDataFim().toLocalDate());
 
@@ -241,7 +262,6 @@ public class ReservaService {
                     EntEstacao ref = !devsDaSala.isEmpty() ? devsDaSala.get(0) :
                             (!designsDaSala.isEmpty() ? designsDaSala.get(0) : simplesDaSala.get(0));
 
-                    // Aplica busca por proximidade conforme solicitado
                     List<EntEstacao> devsEscolhidos = buscarEstacoesJuntas(ref, devsDaSala, perfilDTO.getQtdDev().intValue());
                     List<EntEstacao> designsEscolhidos = buscarEstacoesJuntas(ref, designsDaSala, perfilDTO.getQtdDesign().intValue());
                     List<EntEstacao> simplesEscolhidos = buscarEstacoesJuntas(ref, simplesDaSala, perfilDTO.getQtdSimples().intValue());
@@ -257,18 +277,18 @@ public class ReservaService {
                         salasDisponiveis.add(new SalaComEstacoesDTO(sala, todasEstacoesDaSala));
                     });
                 } catch (Exception e) {
-                    // Geometria inválida para essa combinação
+                    // Geometria inválida
                 }
             }
         }
         return salasDisponiveis;
     }
 
-    /**
-     * CONSULTA 3: Retorna todas as salas e suas respectivas estações que estão 100% livres no período.
-     */
     @Transactional(readOnly = true)
     public List<SalasEEstacoesDisponiveisDTO> consultarTodasSalasEEstacoesLivres(ReservaRequestDTO perfilDTO) {
+        validarDatasEHorarios(perfilDTO.getDataInicio().toLocalDate(), perfilDTO.getDataFim().toLocalDate(),
+                perfilDTO.getDataInicio().toLocalTime(), perfilDTO.getDataFim().toLocalTime());
+
         List<EntEstacao> devsLivres = estacaoRepository.buscarEstacoesLivresPorPerfilSemSala(
                 "dev", perfilDTO.getDataInicio().toLocalDate(), perfilDTO.getDataFim().toLocalDate());
 
@@ -304,6 +324,9 @@ public class ReservaService {
 
     @Transactional
     public List<ReservaDTO> adicionarReservaPorPerfilJuntosNaSala(ReservaRequestDTO perfilDTO, Long idSala) {
+        validarDatasEHorarios(perfilDTO.getDataInicio().toLocalDate(), perfilDTO.getDataFim().toLocalDate(),
+                perfilDTO.getDataInicio().toLocalTime(), perfilDTO.getDataFim().toLocalTime());
+
         List<EntEstacao> devsLivres = estacaoRepository.buscarEstacoesLivresPorPerfilESala(
                 idSala, "dev", perfilDTO.getDataInicio().toLocalDate(), perfilDTO.getDataFim().toLocalDate());
 
@@ -333,6 +356,9 @@ public class ReservaService {
 
     @Transactional
     public List<ReservaDTO> adicionarReservaPorPerfilSeparadosNaSala(ReservaRequestDTO perfilDTO, int salto, Long idSala) {
+        validarDatasEHorarios(perfilDTO.getDataInicio().toLocalDate(), perfilDTO.getDataFim().toLocalDate(),
+                perfilDTO.getDataInicio().toLocalTime(), perfilDTO.getDataFim().toLocalTime());
+
         List<EntEstacao> devsLivres = estacaoRepository.buscarEstacoesLivresPorPerfilESala(
                 idSala, "dev", perfilDTO.getDataInicio().toLocalDate(), perfilDTO.getDataFim().toLocalDate());
 
@@ -442,7 +468,7 @@ public class ReservaService {
             }
         }
 
-        if (dto.getIdprofissional() != null) {
+        if (dto.getIdprofissional()!= null) {
             List<EntReserva> reservasProfissional = reservaRepository.findByIdprofissional(dto.getIdprofissional());
             if (!reservasProfissional.isEmpty()) {
                 throw new RuntimeException("Este profissional já possui uma reserva ativa e não pode realizar outra.");
@@ -451,6 +477,10 @@ public class ReservaService {
     }
 
     public void validarDisponibilidade(ReservaDTO dto) {
+        // Reutiliza a validação cronológica geral
+        validarDatasEHorarios(dto.getDatainicial(), dto.getDatafinal(), dto.getHorainicial(), dto.getHorafinal());
+
+        // Validação de Lotação Original
         int lotMax = (int) salaRepository.findById(dto.getIdsala())
                 .orElseThrow(() -> new RuntimeException("Sala não encontrada"))
                 .getLot_max();
@@ -492,19 +522,6 @@ public class ReservaService {
         return mapToDTO(existente);
     }
 
-    private ReservaDTO mapToDTO(EntReserva reserva) {
-        return ReservaDTO.builder()
-                .idreserva(reserva.getIdreserva())
-                .idsala(reserva.getIdsala())
-                .idusuario(reserva.getIdusuario())
-                .idprofissional(reserva.getIdprofissional())
-                .datainicial(reserva.getDatainicial())
-                .datafinal(reserva.getDatafinal())
-                .horainicial(reserva.getHorainicial())
-                .horafinal(reserva.getHorafinal())
-                .build();
-    }
-
     public List<ReservaDTO> buscarTodasReservas() {
         return reservaRepository.findAll().stream().map(this::mapToDTO).collect(Collectors.toList());
     }
@@ -531,5 +548,29 @@ public class ReservaService {
         }
 
         return List.of(mapToDTO(reservaSalva));
+    }
+
+    private ReservaDTO mapToDTO(EntReserva reserva) {
+
+        return ReservaDTO.builder()
+
+                .idreserva(reserva.getIdreserva())
+
+                .idsala(reserva.getIdsala())
+
+                .idusuario(reserva.getIdusuario())
+
+                .idprofissional(reserva.getIdprofissional())
+
+                .datainicial(reserva.getDatainicial())
+
+                .datafinal(reserva.getDatafinal())
+
+                .horainicial(reserva.getHorainicial())
+
+                .horafinal(reserva.getHorafinal())
+
+                .build();
+
     }
 }
