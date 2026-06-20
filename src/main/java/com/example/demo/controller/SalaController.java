@@ -1,10 +1,14 @@
 package com.example.demo.controller;
 
+import com.example.demo.dto.ReservaRequestDTO;
 import com.example.demo.dto.SalaDTO;
+import com.example.demo.dto.SalasEEstacoesDisponiveisDTO;
 import com.example.demo.model.EntEquipamento;
 import com.example.demo.model.EntEstacao;
 import com.example.demo.model.EntSala;
 import com.example.demo.repository.SalaRepository;
+import com.example.demo.service.GeminiWorkspaceService;
+import com.example.demo.service.ReservaService;
 import com.example.demo.service.SalaService;
 import com.example.demo.repository.EquipamentoRepository;
 import com.example.demo.repository.EstacaoRepository;
@@ -38,8 +42,11 @@ public class SalaController {
     @Autowired
     private EquipamentoRepository equipamentoRepository;
 
-    private final String FASTAPI_URL = "http://0.0.0.0:8000/analisar";//"http://127.0.0.1:8000/analisar"
+    @Autowired
+    private ReservaService reservaService;
 
+    private final String FASTAPI_URL = "http://0.0.0.0:8000/analisar";//"http://127.0.0.1:8000/analisar"
+    private final GeminiWorkspaceService geminiService = new GeminiWorkspaceService();
     // Adicionar imagem e integrar com FastAPI
     @PostMapping("/{id}/upload-planta")
     public ResponseEntity<?> fazerUploadPlanta(
@@ -228,5 +235,29 @@ public class SalaController {
     public ResponseEntity<String> deletar(@PathVariable Long id) {
         salaService.removerSala(id);
         return ResponseEntity.ok("A Sala com ID " + id + " excluída com sucesso!");
+    }
+
+    @PostMapping("gemini/sugerir-estacoes")
+    public ResponseEntity<?> sugerirEstacoesParaEquipe(@RequestBody ReservaRequestDTO perfilDTO) {
+        try {
+            List<SalasEEstacoesDisponiveisDTO> salasDisponiveis =
+                    reservaService.consultarTodasSalasEEstacoesLivres(perfilDTO);
+
+            if (salasDisponiveis.isEmpty()) {
+                return ResponseEntity.ok("Nenhuma estação disponível para o período informado.");
+            }
+
+            List<SalasEEstacoesDisponiveisDTO> sugestao = geminiService.selecionarEstacoesParaEquipe(
+                    salasDisponiveis,
+                    perfilDTO.getQtdDev().intValue(),
+                    perfilDTO.getQtdDesign().intValue(),
+                    perfilDTO.getQtdSimples().intValue()
+            );
+
+            return ResponseEntity.ok(sugestao);
+
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().body("Erro ao consultar a IA: " + e.getMessage());
+        }
     }
 }
