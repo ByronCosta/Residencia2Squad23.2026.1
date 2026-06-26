@@ -69,7 +69,7 @@ Salve e feche o Bloco de Notas.
 docker compose up --build -d
 ```
 
-> ⏳ Na primeira execução, esse comando pode demorar entre 5 e 15 minutos — ele vai baixar as imagens Docker, compilar o Java e instalar as dependências Python. As próximas execuções serão muito mais rápidas.
+> ⏳ Na primeira execução, esse comando pode demorar entre 5 e 15 minutos. As próximas execuções serão muito mais rápidas.
 
 ### 4. Verifique se está tudo rodando
 
@@ -85,30 +85,62 @@ residencia_java    Up
 residencia_python  Up
 ```
 
-### 5. Teste no navegador
+---
 
-- Python API: http://localhost:8000
-- Java API: http://localhost:8080/salas
+## Documentação das APIs (Swagger)
 
-Se o `/salas` retornar uma lista de salas em JSON, o projeto está funcionando corretamente.
+Após subir o projeto, acesse a documentação interativa dos endpoints:
+
+| API | URL | Descrição |
+|---|---|---|
+| Java API | http://localhost:8080/swagger-ui/index.html | Endpoints de negócio (salas, reservas, usuários, Gemini) |
+| Python API | http://localhost:8000/docs | Endpoints de visão computacional (YOLO) |
+
+> 💡 No Swagger da Java API, clique em **Authorize** e cole o token JWT obtido no login para testar os endpoints protegidos.
 
 ---
 
 ## Testando os endpoints
 
-Importe a coleção do **Bruno** disponível na pasta `endpoints/` do repositório.
+### Fluxo principal
 
-Para instalar o Bruno: https://www.usebruno.com/downloads
+**1. Login**
+```
+POST http://localhost:8080/api/accenture/auth/authenticate
+Body: { "email": "seu@email.com", "password": "suasenha" }
+```
+Copie o token JWT retornado.
+
+**2. Listar salas**
+```
+GET http://localhost:8080/salas
+```
+
+**3. Criar sala**
+```
+POST http://localhost:8080/salas
+Body: { "endereco": "Sala 101", "lotMax": 10, "disponibilidade": true }
+```
+
+**4. Analisar planta baixa (YOLO)**
+```
+POST http://localhost:8000/analisar
+Body: form-data → campo "file" → selecione uma imagem .jpg/.png
+```
+
+**5. Sugerir estações via Gemini**
+```
+POST http://localhost:8080/api/workspace/sugerir-estacoes
+Header: Authorization: Bearer <token>
+```
+
+### Usando o Bruno
+
+Importe a coleção disponível na pasta `endpoints/` do repositório.
+
+Instale o Bruno: https://www.usebruno.com/downloads
 
 Abra o Bruno → **Open Collection** → selecione a pasta `endpoints/`.
-
-### Fluxo principal de teste
-
-1. **Login** → `POST /api/accenture/auth/authenticate`
-2. **Listar salas** → `GET /salas`
-3. **Criar sala** → `POST /salas`
-4. **Analisar planta baixa** → `POST /analisar` (envia imagem para o YOLO)
-5. **Sugerir estações via Gemini** → `POST /api/workspace/sugerir-estacoes`
 
 ---
 
@@ -131,7 +163,7 @@ docker compose up -d
 # Subir com rebuild (após atualizar o código)
 docker compose up --build -d
 
-# Resetar o banco de dados (apaga tudo e recria com os dados iniciais)
+# Resetar o banco (apaga tudo e recria com dados iniciais)
 docker compose down -v
 docker compose up --build -d
 ```
@@ -146,7 +178,7 @@ residencia/
 ├── .env.example             # Modelo de variáveis de ambiente
 ├── db/
 │   └── init.sql             # Dados iniciais do banco (carregados automaticamente)
-├── java-api/                # API Spring Boot (negócio + auth + Gemini)
+├── java-api/                # API Spring Boot (negócio + auth + Gemini + Swagger)
 │   ├── Dockerfile
 │   └── src/
 └── python-api/              # API FastAPI (YOLO + visão computacional)
@@ -165,15 +197,13 @@ residencia/
 > Algum outro programa está usando essa porta. Feche-o ou reinicie o PC.
 
 **Container Java em loop de restart**
-> Verifique se o `.env` está preenchido corretamente, especialmente o `JWT_SECRET` e o `GEMINI_API_KEY`.
-
+> Verifique se o `.env` está preenchido corretamente.
 ```bash
 docker compose logs java-api --tail 30
 ```
 
 **Banco de dados vazio após subir**
-> O `init.sql` só é executado quando o volume é criado pela primeira vez. Se o banco já existia, rode:
-
+> O `init.sql` só é executado quando o volume é criado pela primeira vez. Se o banco já existia:
 ```bash
 docker compose down -v
 docker compose up --build -d
