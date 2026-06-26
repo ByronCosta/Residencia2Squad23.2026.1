@@ -10,9 +10,21 @@ def analisar_planta(caminho_imagem: str) -> dict:
     contador_estacao = 1
     
     for r in results:
+        # r.names garante o dicionário de classes correto que você validou no console
+        mapeamento_classes = r.names  
+        
         for box in r.boxes:
-            class_id = int(box.cls)
-            label = model.names[class_id].lower() # Retorna 'dev', 'design' ou 'simples'
+            # .item() extrai o índice numérico exato do Tensor do YOLO
+            class_id = int(box.cls[0].item())
+            label_real = mapeamento_classes[class_id].lower() 
+            
+            # Padroniza o retorno para bater com as condições do Java
+            if "design" in label_real:
+                label = "design"
+            elif "dev" in label_real:
+                label = "dev"
+            else:
+                label = "simples"
             
             # Coordenadas do Box
             xyxy = box.xyxy[0].tolist()
@@ -21,7 +33,7 @@ def analisar_planta(caminho_imagem: str) -> dict:
             
             estacao = {
                 "estacao": contador_estacao,
-                "descricao": label,
+                "tipo": label,  # Mudado de 'descricao' para 'tipo' para alinhar com o Java
                 "coordx": coord_x,
                 "coordy": coord_y
             }
