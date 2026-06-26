@@ -1,6 +1,7 @@
 package com.example.demo.repository;
 
 import com.example.demo.model.EntEstacao;
+import jakarta.transaction.Transactional;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -52,4 +53,6 @@ public interface EstacaoRepository extends JpaRepository<EntEstacao, Long> {
             @Param("dataInicio") LocalDate dataInicio,
             @Param("dataFim") LocalDate dataFim
     );
+    @Transactional
+    void deleteByIdsala(Long idsala);
 }

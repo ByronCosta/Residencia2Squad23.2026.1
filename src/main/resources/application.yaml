@@ -1,0 +1,53 @@
+spring:
+  application:
+    name: demo
+
+  datasource:
+    url: jdbc:postgresql://localhost:5432/reservasacenture
+    username: postgres
+    password: 1234
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+
+  security:
+    saml2:
+      relyingparty:
+        registration:
+          azure:
+            assertingparty:
+              metadata-uri: "classpath:azure-metadata.xml"
+
+# O bloco server deve ficar no mesmo nível de 'spring'
+server:
+  port: 8080
+  servlet:
+    session:
+      cookie:
+        same-site: lax # Mude para "none" para teste, se "lax" falhar
+        secure: false     # Obrigatório para HTTP puro
+        http-only: true
+      tracking-modes: ["cookie"]
+      timeout: 30m
+# Configurações personalizadas do seu JWT
+application:
+  security:
+    jwt:
+      secret-key: 404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970
+      expiration: 86400000
+
+# Configuração da chave do Gemini (movida do código para o yaml)
+gemini:
+  api:
+    key: ${GCP_API_KEY:chave_ficticia_para_desenvolvimento}
+
+logging:
+  level:
+    org.springframework.security: DEBUG
+    org.springframework.web: DEBUG

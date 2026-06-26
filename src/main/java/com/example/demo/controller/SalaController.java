@@ -45,7 +45,7 @@ public class SalaController {
     @Autowired
     private ReservaService reservaService;
 
-    private final String FASTAPI_URL = "http://0.0.0.0:8000/analisar";//"http://127.0.0.1:8000/analisar"
+    private final String FASTAPI_URL = "http://127.0.0.1:8000/analisar";//"http://127.0.0.1:8000/analisar"
     private final GeminiWorkspaceService geminiService = new GeminiWorkspaceService();
     // Adicionar imagem e integrar com FastAPI
     @PostMapping("/{id}/upload-planta")
@@ -84,28 +84,36 @@ public class SalaController {
                     JsonNode.class
             );
 
-            JsonNode estacoesArray = response.getBody();
+            JsonNode rootNode = response.getBody();
+
+            if (rootNode != null) {
+                System.out.println("JSON Recebido da FastAPI: " + rootNode.toPrettyString());
+            }
+
+            // Navega até o array "itens" dentro de "analise"
+            JsonNode estacoesArray = null;
+            if (rootNode != null && rootNode.has("analise")) {
+                estacoesArray = rootNode.get("analise").get("itens");
+            }
+
+            int totalEstacoesInseridasNesteUpload = 0;
 
             if (estacoesArray != null && estacoesArray.isArray()) {
+
+                // --- LIMPEZA DO DESENHO ANTIGO ---
+                // Remove todas as estações antigas vinculadas a este idSala antes do novo loop.
+                // Nota: Garanta que o banco possua 'ON DELETE CASCADE' nos equipamentos para deletá-los juntos!
+                estacaoRepository.deleteByIdsala(idSala);
+
                 for (JsonNode noEstacao : estacoesArray) {
 
-                    int numeroEstacao = noEstacao.get("estacao").asInt();
-                    int coordX = noEstacao.get("coordx").asInt();
-                    int coordY = noEstacao.get("coordy").asInt();
+                    int numeroEstacao = noEstacao.path("estacao").asInt();
+                    int coordX = noEstacao.path("coordx").asInt();
+                    int coordY = noEstacao.path("coordy").asInt();
 
-                    JsonNode itens = noEstacao.get("itens");
-                    int qtdCadeiras = itens.has("cadeira") ? itens.get("cadeira").asInt() : 0;
-                    int qtdMonitores = itens.has("monitor") ? itens.get("monitor").asInt() : 0;
+                    String descricaoEstacao = noEstacao.path("tipo").asText("simples").toLowerCase();
 
-                    String descricaoEstacao;
-                    if (qtdMonitores == 1) {
-                        descricaoEstacao = "dev";
-                    } else if (qtdMonitores >= 2) {
-                        descricaoEstacao = "design";
-                    } else {
-                        descricaoEstacao = "simples";
-                    }
-
+                    // 1. Salva a nova Estação
                     EntEstacao estacao = new EntEstacao();
                     estacao.setDescricao(descricaoEstacao);
                     estacao.setCoordx(coordX);
@@ -115,48 +123,54 @@ public class SalaController {
                     EntEstacao estacaoSalva = estacaoRepository.save(estacao);
                     Long idEstacaoGerado = estacaoSalva.getIdestacao();
 
-                    for (int i = 0; i < qtdCadeiras; i++) {
-                        EntEquipamento cadeira = EntEquipamento.builder()
-                                .idestacao(idEstacaoGerado)
-                                .descricao("Cadeira da Estação " + numeroEstacao + " (" + descricaoEstacao + ")")
-                                .estoque(false)
-                                .build();
-                        equipamentoRepository.save(cadeira);
-                    }
+                    totalEstacoesInseridasNesteUpload++;
 
-                    for (int i = 0; i < qtdMonitores; i++) {
-                        EntEquipamento monitor = EntEquipamento.builder()
+                    // 2. Cria os novos equipamentos específicos
+                    EntEquipamento cadeira = EntEquipamento.builder()
+                            .idestacao(idEstacaoGerado)
+                            .descricao("Cadeira da Estação " + numeroEstacao + " (" + descricaoEstacao + ")")
+                            .estoque(false)
+                            .build();
+                    equipamentoRepository.save(cadeira);
+
+                    if ("dev".equals(descricaoEstacao)) {
+                        EntEquipamento computadorDev = EntEquipamento.builder()
                                 .idestacao(idEstacaoGerado)
-                                .descricao("Monitor da Estação " + numeroEstacao + " (" + descricaoEstacao + ")")
+                                .descricao("Computador da Estação " + numeroEstacao + " (dev)")
                                 .estoque(false)
                                 .build();
-                        equipamentoRepository.save(monitor);
+                        equipamentoRepository.save(computadorDev);
+
+                    } else if ("design".equals(descricaoEstacao)) {
+                        EntEquipamento computadorDesign = EntEquipamento.builder()
+                                .idestacao(idEstacaoGerado)
+                                .descricao("Computador Grande da Estação " + numeroEstacao + " (design)")
+                                .estoque(false)
+                                .build();
+                        equipamentoRepository.save(computadorDesign);
                     }
                 }
 
-                // --- REGRA DE NEGÓCIO ADICIONADA AQUI ---
-                // 1. Conta o total de estações salvas que possuem o idsala correspondente
-                int totalEstacoes = estacaoRepository.countByIdsala(idSala);
-
-                // 2. Busca a sala correspondente no banco de dados
+                // --- REGRA DE NEGÓCIO DA LOTAÇÃO ---
+                // Agora que limpamos o banco antes, o count vai bater exatamente com o que foi inserido
+                int totalEstacoesBanco = estacaoRepository.countByIdsala(idSala);
                 Optional<EntSala> salaOptional = salaRepository.findById(idSala);
 
                 if (salaOptional.isPresent()) {
                     EntSala sala = salaOptional.get();
-                    // 3. Atualiza a lotação máxima com o total de estações
-                    sala.setLot_max(totalEstacoes);
-                    // 4. Salva a sala atualizada
+                    sala.setLot_max(totalEstacoesBanco);
                     salaRepository.save(sala);
                 } else {
                     return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                            .body("Estações salvas, mas a sala com ID " + idSala + " não foi encontrada para atualizar a lotação.");
+                            .body("Estações processadas, mas a sala com ID " + idSala + " não foi encontrada para atualizar a lotação.");
                 }
-                // ----------------------------------------
             }
 
             return ResponseEntity.ok(Map.of(
                     "sucesso", true,
-                    "mensagem", "Planta processada. Estações e equipamentos salvos. Lotação máxima da sala " + idSala + " atualizada para " + estacaoRepository.countByIdsala(idSala)
+                    "mensagem", "Planta antiga removida. Nova planta processada com sucesso.",
+                    "total_estacoes_inseridas", totalEstacoesInseridasNesteUpload,
+                    "lotacao_maxima_atual_sala", totalEstacoesInseridasNesteUpload
             ));
 
         } catch (Exception e) {
