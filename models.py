@@ -1,13 +1,14 @@
+# model.py
 from pydantic import BaseModel
 from typing import List, Optional
 
-class Item(BaseModel):
-	nome : str
-	tipo : str
-	quantidade : int
-	observações: Optional[str] = None
-	
-class Sala_Empresarial(BaseModel):
-	item : List[Item]
-	total_itens : int
-	observacoes_gerais : Optional[str] = None
+class EstacaoDetectada(BaseModel):
+    estacao: int
+    descricao: str  # 'dev', 'design' ou 'simples'
+    coordx: int
+    coordy: int
+
+class AnaliseResponse(BaseModel):
+    itens: List[EstacaoDetectada]
+    total_itens: int
+    observacoes_gerais: Optional[str] = None
