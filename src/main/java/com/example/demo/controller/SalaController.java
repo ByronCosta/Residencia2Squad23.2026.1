@@ -45,10 +45,10 @@ public class SalaController {
     @Autowired
     private ReservaService reservaService;
 
-    private final String FASTAPI_URL = "http://127.0.0.1:8000/analisar";//"http://127.0.0.1:8000/analisar"
+    private final String FASTAPI_URL = "http://python-api:8000/analisar";//"http://127.0.0.1:8000/analisar"
     private final GeminiWorkspaceService geminiService = new GeminiWorkspaceService();
     // Adicionar imagem e integrar com FastAPI
-    @PostMapping("/{id}/upload-planta")
+    @PostMapping(value="/{id}/upload-planta", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<?> fazerUploadPlanta(
             @PathVariable("id") Long idSala,
             @RequestParam("file") MultipartFile file) {
